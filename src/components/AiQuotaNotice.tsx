@@ -112,7 +112,6 @@ export function AiQuotaNotice({ progress }: { progress: DiaryProgressView }) {
             tone="secondary"
             stable
             fullWidth
-            size="medium"
             disabled={busy}
             onClick={() => {
               void openOffer();

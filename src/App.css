@@ -46,6 +46,12 @@
   --app-control-transition:
     transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
   --app-modal-bezel: clamp(16px, 5vw, 24px);
+
+  /* Space between a rendered banner ad and the block under it. Fixed rather
+     than inherited from each view's own gap: matching the calendar's spacing
+     everywhere is the point, so a single number beats two that happen to
+     agree. */
+  --banner-ad-gap: 28px;
 }
 
 /* Focus hides the bottom CTA immediately, before a mobile WebView finishes
@@ -4217,9 +4223,27 @@ html:has(
   text-align: left;
 }
 
+/* The 'AI 일기 횟수 추가하기' button — the only button this card ever holds.
+   Scaled to ~90% of the standard control (58px → 52px tall, 20px → 18px type)
+   because it is a secondary offer sitting inside a small status card, not a
+   step's main CTA, and at full size it out-weighed the card around it.
+   Overriding here rather than through TDS's `size` prop is the only thing that
+   works: the base .summer-diary-button rule sets height, padding and font-size
+   with !important, so a prop would not survive it. */
+.daily-status-plain .summer-diary-button {
+  min-height: 52px !important;
+  padding: 8px 13px !important;
+  font-size: 18px !important;
+}
+
 /* Banner ad slot. Collapsed to nothing until the SDK reports a rendered ad, so
-   a local browser or a no-fill response leaves no gap above the diary. */
+   a local browser or a no-fill response leaves no gap above the diary — which
+   is why every bit of spacing sits on .is-rendered and none of it on the base
+   rule. The 8px top and the inline inset repeat .step-body's padding, since the
+   banner now sits outside .step-body and would otherwise run edge to edge. */
 .banner-ad {
+  position: relative;
+  z-index: 2;
   width: 100%;
   height: 0;
   overflow: hidden;
@@ -4229,7 +4253,22 @@ html:has(
 
 .banner-ad.is-rendered {
   height: auto;
-  margin-bottom: 10px;
+  padding: 8px clamp(16px, 5vw, 24px) 0;
+  margin-bottom: var(--banner-ad-gap);
+}
+
+/* The gap under the banner belongs to the banner alone. Without this the block
+   that follows adds its own top spacing on top of it — 8px of body padding on
+   the calendar, the step indicator's -2px on the preview — and the same banner
+   read as sitting at two different distances from the card below it. */
+.banner-ad.is-rendered + .summer-step-progress,
+.banner-ad.is-rendered + .step-body {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.banner-ad.is-rendered + .step-body > :first-child {
+  margin-top: 0;
 }
 
 .banner-ad-slot {

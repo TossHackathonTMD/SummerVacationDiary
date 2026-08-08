@@ -11,6 +11,7 @@ import {
 
 import "./App.css";
 import { AiQuotaNotice, AiRecheckNotice } from "./components/AiQuotaNotice";
+import { BannerAd } from "./components/BannerAd";
 import { DiaryButton } from "./components/DiaryButton";
 import { PhotoUploadStep } from "./components/PhotoUploadStep";
 import { StreakMilestoneModal } from "./components/StreakMilestoneModal";
@@ -983,6 +984,15 @@ function App() {
           </Top.SubtitleParagraph>
         }
       />
+
+      {/* The banner lives here, not inside each view, so it lands in the same
+          place on every screen that carries one: directly under the header.
+          Inside .step-body it could not — on the preview step the step
+          indicator is a sibling of .step-body, so no ordering within the body
+          could lift the banner above it. Keeping one instance also means
+          moving between the preview and the calendar reuses the attached slot
+          instead of tearing it down and asking the SDK for a new ad. */}
+      {(step === "preview" || step === "calendar") && <BannerAd />}
 
       {progress !== null && (
         <div

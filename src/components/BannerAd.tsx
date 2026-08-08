@@ -1,13 +1,16 @@
 /**
  * Inline banner ad for the preview and calendar views.
  *
+ * Mounted once by App, directly under the header, rather than by each view —
+ * see the comment at that call site for why the position has to be decided
+ * there.
+ *
  * Two things shape this component. First, `TossAds.initialize` is a one-time
  * global setup rather than something each banner does, so the promise below is
- * module-level and shared — mounting the preview and then the calendar must not
- * initialise twice. Second, the container renders at zero height until the SDK
- * confirms an ad was actually drawn: in a plain browser (and whenever the
- * network returns no fill) there is no ad, and reserving a 96px gap for it
- * would leave a permanent hole above the diary.
+ * module-level and shared, and survives a remount. Second, the container
+ * renders at zero height until the SDK confirms an ad was actually drawn: in a
+ * plain browser (and whenever the network returns no fill) there is no ad, and
+ * reserving a 96px gap for it would leave a permanent hole above the diary.
  */
 
 import { TossAds } from "@apps-in-toss/web-framework";
@@ -42,7 +45,7 @@ function ensureAdsInitialized(): Promise<boolean> {
   return initialization;
 }
 
-export function BannerAd({ label }: { label?: string }) {
+export function BannerAd() {
   const slotRef = useRef<HTMLDivElement>(null);
   const [rendered, setRendered] = useState(false);
 
@@ -101,10 +104,7 @@ export function BannerAd({ label }: { label?: string }) {
   }, []);
 
   return (
-    <div
-      className={`banner-ad${rendered ? " is-rendered" : ""}`}
-      aria-label={label ?? "광고"}
-    >
+    <div className={`banner-ad${rendered ? " is-rendered" : ""}`} aria-label="광고">
       <div ref={slotRef} className="banner-ad-slot" />
     </div>
   );

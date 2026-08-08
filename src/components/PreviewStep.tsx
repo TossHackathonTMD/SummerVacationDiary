@@ -13,7 +13,6 @@ import {
   weatherIconUrl,
   weatherLabel,
 } from "../constants/diary";
-import { BannerAd } from "./BannerAd";
 import { DiaryFrameBackground } from "./DiaryFrameBackground";
 import { StarMark } from "./StarMark";
 import type { AnalysisState } from "../hooks/useDiaryAnalysis";
@@ -601,8 +600,6 @@ export function PreviewStep({
       <p className="visually-hidden" role="status">
         {sketchAnnouncement}
       </p>
-
-      <BannerAd label="미리보기 화면 광고" />
 
       {isProcessingVisible ? (
         <DiaryProcessingStage currentStep={processingStep} />
