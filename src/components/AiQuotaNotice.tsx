@@ -1,9 +1,11 @@
 import { Paragraph } from "@toss/tds-mobile";
+import { useEffect, useRef } from "react";
 
-import { QUOTA_RESET_NOTICE } from "../constants/diary";
 import type { DiaryProgressView } from "../hooks/useDiaryProgress";
 import { isRegionBlocked, useAiQuota } from "../hooks/useAiQuota";
+import { useRewardedAdOffer } from "../hooks/useRewardedAdOffer";
 import { isAiTestMode } from "../services/supabaseEdge";
+import { DiaryButton } from "./DiaryButton";
 import { DiaryStreakLead } from "./DiaryStreakStatus";
 
 function NoticeBox({
@@ -32,175 +34,95 @@ function NoticeBox({
   );
 }
 
-function QuotaCounterNotice({
-  progress,
-  label,
-  used,
-  limit,
-  exhaustedMessage,
-}: {
-  progress: DiaryProgressView;
-  label: string;
-  used: number;
-  limit: number;
-  exhaustedMessage: string;
-}) {
-  const remaining = Math.max(limit - used, 0);
-  const available = remaining > 0;
-  const safeLimit = Math.max(limit, 1);
+const REGION_BLOCKED_LINES = [
+  "해외에서는 AI 그림일기 검사를 이용할 수 없어요.",
+  "AI 결과 없이도 그림일기를 완성할 수 있어요.",
+];
 
-  return (
-    <div
-      className={`ai-quota-notice ai-quota-counter daily-status-card${
-        available ? "" : " is-exhausted"
-      }`}
-      aria-live="polite"
-    >
-      <DiaryStreakLead progress={progress} />
-
-      <div className="daily-status-divider" aria-hidden="true" />
-
-      <div className="ai-quota-counter-header">
-        <div className="ai-quota-counter-heading">
-          <span className="ai-quota-counter-kicker">
-            오늘의 {label} · 하루 {limit}회
-          </span>
-          <strong>
-            {available ? `${remaining}회 남았어요` : exhaustedMessage}
-          </strong>
-        </div>
-
-        <span
-          className="ai-quota-counter-value"
-          aria-label={`${limit}회 중 ${remaining}회 남음`}
-        >
-          <strong>{remaining}</strong>
-          <span>/{limit}</span>
-        </span>
-      </div>
-
-      <div
-        className="ai-quota-meter"
-        role="progressbar"
-        aria-label={`${label} 남은 횟수`}
-        aria-valuemin={0}
-        aria-valuemax={limit}
-        aria-valuenow={remaining}
-      >
-        {Array.from({ length: safeLimit }, (_, index) => (
-          <span
-            key={index}
-            className={index < remaining ? "is-remaining" : ""}
-            aria-hidden="true"
-          />
-        ))}
-      </div>
-
-      <div className="ai-quota-counter-footer">
-        <span>{available ? `하루 최대 ${limit}회` : QUOTA_RESET_NOTICE}</span>
-      </div>
-    </div>
-  );
-}
-
-function QuotaStatusMessage({
-  progress,
-  lines,
-  tone = "neutral",
-}: {
-  progress: DiaryProgressView;
-  lines: string[];
-  tone?: "neutral" | "warning";
-}) {
-  return (
-    <div
-      className={`ai-quota-notice daily-status-card daily-status-message is-${tone}`}
-      aria-live="polite"
-    >
-      <DiaryStreakLead progress={progress} />
-      <div className="daily-status-divider" aria-hidden="true" />
-      <div className="daily-status-ai-message">
-        <span className="ai-quota-notice-symbol" aria-hidden="true">
-          i
-        </span>
-        <div className="ai-quota-notice-copy">
-          {lines.map((line) => (
-            <Paragraph key={line} as="span" typography="t7" color="#5A442C">
-              {line}
-            </Paragraph>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface QuotaNoticeCopy {
-  label: string;
-  localMode: string[];
-  localTest: string[];
-  serverTest: string[];
-  regionBlocked: string[];
-  checking: string;
-  exhausted: string;
-}
-
-const QUOTA_NOTICE_COPY: QuotaNoticeCopy = {
-  label: "AI 검사",
-  localMode: ["기기 안에서 그림일기를 만들고 검사해요."],
-  localTest: ["테스트 모드 · AI 검사를 제한 없이 이용할 수 있어요."],
-  serverTest: ["테스트 모드 · AI 검사를 제한 없이 이용할 수 있어요."],
-  regionBlocked: [
-    "해외에서는 AI 그림일기 검사를 이용할 수 없어요.",
-    "AI 결과 없이도 그림일기를 완성할 수 있어요.",
-  ],
-  checking: "오늘의 AI 검사 기회를 확인하고 있어요.",
-  exhausted: "오늘 기회를 모두 사용했어요",
-};
-
-function QuotaNotice({ progress }: { progress: DiaryProgressView }) {
-  const quota = useAiQuota();
-  const copy = QUOTA_NOTICE_COPY;
-
-  if (isAiTestMode) {
-    return <QuotaStatusMessage progress={progress} lines={copy.localTest} />;
-  }
-  if (isRegionBlocked(quota)) {
-    return (
-      <QuotaStatusMessage
-        progress={progress}
-        lines={copy.regionBlocked}
-        tone="warning"
-      />
-    );
-  }
-  if (quota.mode === "ready" && quota.testMode) {
-    return <QuotaStatusMessage progress={progress} lines={copy.serverTest} />;
-  }
-  if (quota.mode !== "ready") {
-    return (
-      <QuotaStatusMessage
-        progress={progress}
-        lines={quota.mode === "unknown" ? [copy.checking] : copy.localMode}
-      />
-    );
-  }
-
-  const { used, limit } = quota.completion;
-
-  return (
-    <QuotaCounterNotice
-      progress={progress}
-      label={copy.label}
-      used={used}
-      limit={limit}
-      exhaustedMessage={copy.exhausted}
-    />
-  );
-}
-
+/**
+ * The photo step's status card.
+ *
+ * The daily AI counter used to live here and has been removed on purpose: with
+ * a rewarded ad able to extend the budget, a number on screen would need to
+ * explain itself ("2 free, or 3 if you watch something") to stay honest, and
+ * the remaining count is not what this screen is for. What survives is the
+ * streak lead — the mascot and its one-line greeting — which is about the
+ * user's own record rather than about quota.
+ *
+ * The one thing that does replace the counter is the ad offer, and only in the
+ * state where it means something: the budget is spent and today's bonus is
+ * still unclaimed. In every other state this card is just the mascot.
+ */
 export function AiQuotaNotice({ progress }: { progress: DiaryProgressView }) {
-  return <QuotaNotice progress={progress} />;
+  const quota = useAiQuota();
+  const { canOffer, openOffer, busy } = useRewardedAdOffer();
+
+  // This component is mounted only while the photo step is showing, so its
+  // mount *is* "the user came back to the photo view" — which is the moment the
+  // offer is supposed to appear on its own.
+  //
+  // The latch is per mount rather than per session: declining should stop the
+  // dialog reappearing while they stay here (the button below is how they get
+  // it back), but leaving and returning is a fresh arrival and offers again.
+  // It cannot fire on mount directly — the quota arrives from the server a beat
+  // later, so this waits for `canOffer` to actually become true.
+  const autoOfferedRef = useRef(false);
+  useEffect(() => {
+    if (!canOffer || autoOfferedRef.current) {
+      return;
+    }
+    autoOfferedRef.current = true;
+    void openOffer();
+  }, [canOffer, openOffer]);
+
+  // Region blocking is not a counter — it says the AI features cannot run here
+  // at all — so hiding it with the count would leave overseas users tapping a
+  // button that silently does nothing.
+  const regionBlocked = !isAiTestMode && isRegionBlocked(quota);
+
+  return (
+    <div
+      className="ai-quota-notice daily-status-card daily-status-plain"
+      aria-live="polite"
+    >
+      <DiaryStreakLead progress={progress} />
+
+      {regionBlocked && (
+        <>
+          <div className="daily-status-divider" aria-hidden="true" />
+          <div className="daily-status-ai-message">
+            <span className="ai-quota-notice-symbol" aria-hidden="true">
+              i
+            </span>
+            <div className="ai-quota-notice-copy">
+              {REGION_BLOCKED_LINES.map((line) => (
+                <Paragraph key={line} as="span" typography="t7" color="#5A442C">
+                  {line}
+                </Paragraph>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {canOffer && (
+        <>
+          <div className="daily-status-divider" aria-hidden="true" />
+          <DiaryButton
+            tone="secondary"
+            stable
+            fullWidth
+            disabled={busy}
+            onClick={() => {
+              void openOffer();
+            }}
+          >
+            AI 일기 횟수 추가하기
+          </DiaryButton>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function AiRecheckNotice() {

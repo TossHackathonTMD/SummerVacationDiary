@@ -41,6 +41,8 @@ export type AiQuotaView =
       resetAt: string;
       /** Server-side test mode bypasses counters but remains visible in the UI. */
       testMode: boolean;
+      /** False once today's one rewarded-ad bonus has already been claimed. */
+      adRewardAvailable: boolean;
     };
 
 const QUOTA_STATUS_TIMEOUT_MS = 10_000;
@@ -78,6 +80,29 @@ export async function refreshAiQuota(): Promise<void> {
     await invokeDiaryAi({ action: "quota-status" }, QUOTA_STATUS_TIMEOUT_MS);
   } catch {
     // Leaves the view as "unknown"; counters stay hidden until a call succeeds.
+  }
+}
+
+/**
+ * Banks today's rewarded-ad bonus on the server.
+ *
+ * Nothing is returned because nothing needs to be: `invokeDiaryAi` records the
+ * snapshot carried by the response, so the counter and every gate derived from
+ * it re-render on their own. Resolves to whether the call reached the server,
+ * which is only used to decide whether to apologise to the user.
+ *
+ * Safe to call more than once — the server caps the bonus at one per day and
+ * treats repeats as a no-op that still returns the current numbers.
+ */
+export async function grantAiQuotaAdReward(): Promise<boolean> {
+  if (!isSupabaseConfigured || isAiTestMode) {
+    return false;
+  }
+  try {
+    await invokeDiaryAi({ action: "grant-ad-reward" }, QUOTA_STATUS_TIMEOUT_MS);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -128,8 +153,26 @@ export function useAiQuota(): AiQuotaView {
       region: snapshot.region,
       resetAt: snapshot.resetAt,
       testMode: snapshot.testMode,
+      adRewardAvailable: snapshot.adRewardAvailable,
     };
   }, [snapshot, pendingSketches]);
+}
+
+/**
+ * True when watching a rewarded ad would actually change something: the budget
+ * is known and spent, today's bonus is still unclaimed, and nothing global
+ * (region, test mode) makes the counter moot. Every ad entry point — the popup
+ * and the button that reopens it — is gated on this one predicate so they can
+ * never disagree about whether an ad is worth offering.
+ */
+export function canWatchRewardedAd(view: AiQuotaView): boolean {
+  return (
+    view.mode === "ready" &&
+    !view.testMode &&
+    view.region.allowed &&
+    view.adRewardAvailable &&
+    !view.completion.available
+  );
 }
 
 /**

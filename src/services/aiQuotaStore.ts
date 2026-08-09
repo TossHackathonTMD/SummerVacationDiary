@@ -39,6 +39,12 @@ export interface QuotaSnapshot {
   region: QuotaRegion;
   /** True only when the Edge Function's private test-mode Secret is enabled. */
   testMode: boolean;
+  /**
+   * False once today's rewarded-ad bonus has been claimed. `all.limit` cannot
+   * carry this on its own — a limit of 3 looks identical whether the bonus is
+   * already spent or still on offer.
+   */
+  adRewardAvailable: boolean;
 }
 
 const BLOCKED_REASONS: readonly string[] = [
@@ -164,6 +170,10 @@ export function parseQuotaSnapshot(body: unknown): QuotaSnapshot | null {
     blocked: blocked as QuotaBlockedReason | null,
     region: parseRegion(record.region),
     testMode: record.testMode === true,
+    // Same leniency as parseRegion: a function deployed before the ad reward
+    // omits this field, and defaulting to `true` there would offer a bonus the
+    // server cannot grant. Absent therefore means "no bonus on offer".
+    adRewardAvailable: record.adRewardAvailable === true,
   };
 }
 

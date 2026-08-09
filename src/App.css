@@ -46,6 +46,12 @@
   --app-control-transition:
     transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
   --app-modal-bezel: clamp(16px, 5vw, 24px);
+
+  /* Space between a rendered banner ad and the block under it. Fixed rather
+     than inherited from each view's own gap: matching the calendar's spacing
+     everywhere is the point, so a single number beats two that happen to
+     agree. */
+  --banner-ad-gap: 15px;
 }
 
 /* Focus hides the bottom CTA immediately, before a mobile WebView finishes
@@ -484,8 +490,7 @@ html:has(
 
 /* 사진 선택과 미리보기는 한 화면 안에서 완결되는 단계입니다. 뷰포트
    높이를 넘겨 문서 스크롤이 생기지 않도록 남은 공간을 본문에 배분합니다. */
-.app-shell-upload,
-.app-shell-preview {
+.app-shell-upload {
   display: flex;
   height: 100vh;
   height: 100dvh;
@@ -494,11 +499,16 @@ html:has(
   overscroll-behavior: none;
 }
 
-.app-shell-upload > .step-body,
-.app-shell-preview > .step-body {
+.app-shell-upload > .step-body {
   min-height: 0;
   flex: 1 1 auto;
   overflow: hidden;
+}
+
+/* While the AI is working the CTA is hidden and the stage flexes to fill
+   whatever is left, so there is nothing to scroll and no button to clear. */
+.app-shell-preview > .step-body.is-processing {
+  padding-bottom: calc(24px + var(--app-safe-bottom));
 }
 
 .app-shell::before {
@@ -1361,14 +1371,21 @@ html:has(
   }
 }
 
+/* The 50px floor is taller than the 30.75px of pills it holds (14px marker +
+   3px gap + 13.75px label), and a block box drops all of that slack below the
+   content. Centring with a grid keeps the pills in the middle of the card no
+   matter what changes the content's height — a font fallback, a longer label,
+   or a rule above that alters the padding. */
 .summer-step-progress {
   position: relative;
   z-index: 2;
+  display: grid;
+  align-content: center;
   width: auto;
   min-height: 50px;
   box-sizing: border-box;
-  margin: -2px clamp(16px, 5vw, 24px) 5px;
-  padding: 8px 12px 7px;
+  margin: -2px clamp(16px, 5vw, 24px) 9px;
+  padding: 8px 12px;
   border: 1px solid rgba(80, 142, 181, 0.14);
   border-radius: 20px 15px 18px 17px;
   background: rgba(255, 255, 255, 0.68);
@@ -3155,6 +3172,17 @@ html:has(
   filter: drop-shadow(0 14px 24px rgba(61, 105, 132, 0.12));
 }
 
+/* Inside a scroll container there is nothing to squeeze the card into, and
+   `max-height: 100%` was not squeezing it anyway — it only clamped the flex
+   item's automatic minimum size, so the box reported itself ~177px shorter
+   than the 4:5 picture it actually paints. Every measurement downstream, the
+   scroll range included, was computed from that wrong box. Letting the box
+   match the paint is what makes the scrolling honest. */
+.app-shell-preview > .step-body > .diary-card {
+  max-height: none;
+  flex: 0 0 auto;
+}
+
 .preview-step {
   gap: 4px;
 }
@@ -3235,9 +3263,9 @@ html:has(
   animation: diary-processing-enter 420ms ease-out both;
 }
 
-.preview-step.is-processing {
-  padding-bottom: calc(24px + var(--app-safe-bottom));
-}
+/* The processing state's own padding now lives with the rest of the preview
+   body's box model, next to `.app-shell-preview > .step-body`, so one place
+   owns it and the result does not depend on source order. */
 
 .app-shell-preview:has(.preview-step.is-processing) .app-bottom-bar {
   display: none;
@@ -4195,6 +4223,136 @@ html:has(
   overflow: hidden;
 }
 
+/* The photo step's card once the AI counter was removed from it. Same chrome as
+   the counter card it replaced, so losing the numbers did not also change how
+   this block sits against the page. */
+.daily-status-plain {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px 12px 11px;
+  border: 1.5px solid rgba(87, 158, 131, 0.42);
+  background:
+    radial-gradient(
+      circle at 92% 0,
+      rgba(255, 255, 255, 0.82) 0 27%,
+      transparent 28%
+    ),
+    linear-gradient(135deg, #fffdf6 0%, #edf8f3 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.54),
+    0 5px 12px rgba(67, 122, 101, 0.09);
+  text-align: left;
+}
+
+/* The 'AI 일기 횟수 추가하기' button — the only button this card ever holds.
+   Scaled to ~90% of the standard control (58px → 52px tall, 20px → 18px type)
+   because it is a secondary offer sitting inside a small status card, not a
+   step's main CTA, and at full size it out-weighed the card around it.
+   Overriding here rather than through TDS's `size` prop is the only thing that
+   works: the base .summer-diary-button rule sets height, padding and font-size
+   with !important, so a prop would not survive it. */
+.daily-status-plain .summer-diary-button {
+  min-height: 52px !important;
+  padding: 8px 13px !important;
+  font-size: 18px !important;
+}
+
+/* Banner ad slot. Collapsed to nothing until the SDK reports a rendered ad, so
+   a local browser or a no-fill response leaves no gap above the diary — which
+   is why every bit of spacing sits on .is-rendered and none of it on the base
+   rule. The 8px top and the inline inset repeat .step-body's padding, since the
+   banner now sits outside .step-body and would otherwise run edge to edge. */
+.banner-ad {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.banner-ad.is-rendered {
+  height: auto;
+  /* The frame and its shadow live on .banner-ad-slot. This box only exists to
+     collapse the slot to nothing before an ad arrives, so it has to stop
+     clipping once one has: the bottom padding is 0, and the shadow's whole
+     lower reach falls outside the box. */
+  overflow: visible;
+  padding: 8px clamp(16px, 5vw, 24px) 0;
+  margin-bottom: var(--banner-ad-gap);
+}
+
+/* The ad surface is a square white rectangle painted by a stylesheet the SDK
+   injects into <head> at runtime, and the creative inside it is a closed
+   shadow root our CSS neither reaches nor may restyle (repainting an ad
+   unit's colours or fonts is against the ad policy). So the rounding and the
+   frame both happen on our own container — the approach the banner guide
+   itself points to.
+
+   The radius is the one .ai-quota-notice uses, and no corner exceeds 15px
+   while the SDK reserves 16-20px of renderPadding around the creative, so
+   nothing of the ad's own label or CTA can be clipped. Border and shadow
+   match .summer-step-progress, which sits directly below it, so the two read
+   as part of the same band. */
+.banner-ad.is-rendered .banner-ad-slot {
+  overflow: hidden;
+  border: 1px solid rgba(80, 142, 181, 0.14);
+  border-radius: 15px 12px 14px 13px;
+  box-shadow: 0 5px 18px rgba(70, 125, 160, 0.08);
+}
+
+/* The gap under the banner belongs to the banner alone. Without this the block
+   that follows adds its own top spacing on top of it — 8px of body padding on
+   the calendar, the step indicator's -2px on the preview — and the same banner
+   read as sitting at two different distances from the card below it.
+   The indicator gives up only its margin: taking its padding too would strip
+   the 8px inset it holds its own pills at, leaving them against its border. */
+.banner-ad.is-rendered + .summer-step-progress {
+  margin-top: 0;
+}
+
+.banner-ad.is-rendered + .step-body {
+  padding-top: 0;
+}
+
+.banner-ad.is-rendered + .step-body > :first-child {
+  margin-top: 0;
+}
+
+/* No global border-box reset exists in this project, so the border above
+   would otherwise push the slot 2px past its parent's content box. */
+.banner-ad-slot {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* No ad is ever attached in placeholder mode, so the slot stays empty — but it
+   still inherits the frame above, which an empty box draws as a 2px strip. */
+.banner-ad.is-placeholder .banner-ad-slot {
+  display: none;
+}
+
+/* Matches the geometry a real banner occupies — full width, 96px tall, and the
+   same asymmetric radius the slot frame uses — so layout tuned against this
+   holds once a real ad loads. The border is dashed rather than solid purely so
+   a stand-in is never mistaken for a delivered ad.
+   Only ever visible when VITE_AD_PLACEHOLDER=true. */
+.banner-ad-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 96px;
+  box-sizing: border-box;
+  border: 1px dashed rgba(80, 142, 181, 0.42);
+  border-radius: 15px 12px 14px 13px;
+  background: rgba(80, 142, 181, 0.06);
+  color: rgba(70, 125, 160, 0.75);
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
 .diary-streak-lead {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
@@ -4588,7 +4746,7 @@ html:has(
   width: 100%;
   max-width: 470px;
   box-sizing: border-box;
-  margin: 4px auto 8px;
+  margin: 4px auto 3px;
   padding: 9px 11px 8px;
   overflow: hidden;
   border: 2px solid rgba(219, 105, 78, 0.38);

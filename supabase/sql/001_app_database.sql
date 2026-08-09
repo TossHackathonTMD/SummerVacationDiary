@@ -37,7 +37,7 @@ create table if not exists public.diary_ai_rate_limits (
     window_start
   ),
   constraint diary_ai_rate_limits_action_check
-    check (action in ('sketch', 'analyze', 'all')),
+    check (action in ('sketch', 'analyze', 'all', 'ad-reward')),
   constraint diary_ai_rate_limits_request_count_check
     check (request_count >= 0),
   constraint diary_ai_rate_limits_scope_check
@@ -48,6 +48,16 @@ create table if not exists public.diary_ai_rate_limits (
 
 create index if not exists diary_ai_rate_limits_window_start_idx
   on public.diary_ai_rate_limits (window_start);
+
+-- 'ad-reward'는 리워드 광고로 하루 1회 늘려준 보너스를 세는 행입니다.
+-- 위 create table은 기존 배포본에는 적용되지 않으므로(if not exists),
+-- 이미 만들어진 테이블의 check 제약을 여기서 다시 붙입니다. 이 스크립트를
+-- 통째로 다시 실행해도 안전하도록 drop 후 add 하는 형태로 씁니다.
+alter table public.diary_ai_rate_limits
+  drop constraint if exists diary_ai_rate_limits_action_check;
+alter table public.diary_ai_rate_limits
+  add constraint diary_ai_rate_limits_action_check
+    check (action in ('sketch', 'analyze', 'all', 'ad-reward'));
 
 alter table public.diary_ai_rate_limits enable row level security;
 revoke all on table public.diary_ai_rate_limits
@@ -152,6 +162,7 @@ as $$
 declare
   v_decision text := 'allowed';
   v_user_all integer;
+  v_user_bonus integer;
   v_ip_short integer;
   v_ip_day integer;
   v_service_sketch integer;
@@ -183,6 +194,13 @@ begin
   v_user_all := private.read_diary_quota_counter(
     'user', p_user_hash, 'all', 'day', p_day_window_start
   );
+  -- 리워드 광고로 얻은 오늘의 보너스. grant 함수가 1회로 막아두므로 사실상
+  -- 0 또는 1이고, 그만큼 이 기기의 하루 한도를 올려줍니다. 한도를 올리는
+  -- 대신 사용량을 깎지 않는 이유는, 사용자가 실제로 몇 번 썼는지가 그대로
+  -- 남아 있어야 로그와 화면의 "n/N" 표시가 서로 어긋나지 않기 때문입니다.
+  v_user_bonus := private.read_diary_quota_counter(
+    'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
+  );
   v_ip_short := private.read_diary_quota_counter(
     'ip', p_ip_hash, 'all', 'short', p_short_window_start
   );
@@ -196,7 +214,7 @@ begin
     'service', 'global', 'analyze', 'day', p_day_window_start
   );
 
-  if v_user_all >= p_user_daily_limit then
+  if v_user_all >= p_user_daily_limit + v_user_bonus then
     v_decision := 'device-daily';
   elsif v_ip_short >= p_ip_short_limit then
     v_decision := 'ip-short';
@@ -234,6 +252,7 @@ begin
   return jsonb_build_object(
     'decision', v_decision,
     'userAll', v_user_all,
+    'userBonus', v_user_bonus,
     'ipShort', v_ip_short,
     'ipDay', v_ip_day,
     'serviceSketch', v_service_sketch,
@@ -257,6 +276,7 @@ set search_path = pg_catalog, public, private
 as $$
 declare
   v_user_all integer;
+  v_user_bonus integer;
   v_ip_short integer;
   v_ip_day integer;
   v_service_sketch integer;
@@ -325,6 +345,9 @@ begin
   v_user_all := private.read_diary_quota_counter(
     'user', p_user_hash, 'all', 'day', p_day_window_start
   );
+  v_user_bonus := private.read_diary_quota_counter(
+    'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
+  );
   v_ip_short := private.read_diary_quota_counter(
     'ip', p_ip_hash, 'all', 'short', p_short_window_start
   );
@@ -340,6 +363,7 @@ begin
 
   return jsonb_build_object(
     'userAll', v_user_all,
+    'userBonus', v_user_bonus,
     'ipShort', v_ip_short,
     'ipDay', v_ip_day,
     'serviceSketch', v_service_sketch,
@@ -362,6 +386,7 @@ set search_path = pg_catalog, public, private
 as $$
 declare
   v_user_all integer;
+  v_user_bonus integer;
   v_ip_short integer;
   v_ip_day integer;
   v_service_sketch integer;
@@ -372,6 +397,89 @@ begin
      or p_short_window_start is null
      or p_day_window_start is null then
     raise exception using errcode = '22023', message = 'invalid quota read arguments';
+  end if;
+
+  v_user_all := private.read_diary_quota_counter(
+    'user', p_user_hash, 'all', 'day', p_day_window_start
+  );
+  v_user_bonus := private.read_diary_quota_counter(
+    'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
+  );
+  v_ip_short := private.read_diary_quota_counter(
+    'ip', p_ip_hash, 'all', 'short', p_short_window_start
+  );
+  v_ip_day := private.read_diary_quota_counter(
+    'ip', p_ip_hash, 'all', 'day', p_day_window_start
+  );
+  v_service_sketch := private.read_diary_quota_counter(
+    'service', 'global', 'sketch', 'day', p_day_window_start
+  );
+  v_service_analyze := private.read_diary_quota_counter(
+    'service', 'global', 'analyze', 'day', p_day_window_start
+  );
+
+  return jsonb_build_object(
+    'userAll', v_user_all,
+    'userBonus', v_user_bonus,
+    'ipShort', v_ip_short,
+    'ipDay', v_ip_day,
+    'serviceSketch', v_service_sketch,
+    'serviceAnalyze', v_service_analyze
+  );
+end;
+$$;
+
+-- 리워드 광고를 끝까지 본 기기에 오늘의 AI 검사 기회를 1회 더 줍니다.
+--
+-- 하루 1회로 막는 일이 이 함수의 존재 이유입니다. 클라이언트가 같은 요청을
+-- 여러 번 보내도(중복 탭, 재시도, 조작) 'ad-reward' counter가 p_max_bonus에
+-- 닿는 순간부터는 아무것도 증가시키지 않고 'already-granted'만 돌려줍니다.
+-- consume 쪽과 같은 advisory lock을 잡기 때문에, 광고 보상과 검사 요청이
+-- 동시에 들어와도 한도 계산이 갈라지지 않습니다.
+create or replace function public.grant_diary_ai_ad_reward(
+  p_user_hash text,
+  p_ip_hash text,
+  p_short_window_start timestamptz,
+  p_day_window_start timestamptz,
+  p_max_bonus integer
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private
+as $$
+declare
+  v_decision text;
+  v_user_all integer;
+  v_user_bonus integer;
+  v_ip_short integer;
+  v_ip_day integer;
+  v_service_sketch integer;
+  v_service_analyze integer;
+begin
+  if not private.is_sha256_hex(p_user_hash)
+     or not private.is_sha256_hex(p_ip_hash)
+     or p_short_window_start is null
+     or p_day_window_start is null
+     or p_max_bonus < 1 then
+    raise exception using errcode = '22023', message = 'invalid ad reward arguments';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('diary-ai-quota:' || p_day_window_start::text, 0)
+  );
+
+  v_user_bonus := private.read_diary_quota_counter(
+    'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
+  );
+
+  if v_user_bonus >= p_max_bonus then
+    v_decision := 'already-granted';
+  else
+    v_user_bonus := private.increment_diary_quota_counter(
+      'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
+    );
+    v_decision := 'granted';
   end if;
 
   v_user_all := private.read_diary_quota_counter(
@@ -391,7 +499,9 @@ begin
   );
 
   return jsonb_build_object(
+    'decision', v_decision,
     'userAll', v_user_all,
+    'userBonus', v_user_bonus,
     'ipShort', v_ip_short,
     'ipDay', v_ip_day,
     'serviceSketch', v_service_sketch,
@@ -857,6 +967,9 @@ revoke all on function public.refund_diary_ai_inspection_quota(
 revoke all on function public.read_diary_ai_inspection_quota(
   text, text, timestamptz, timestamptz
 ) from public, anon, authenticated;
+revoke all on function public.grant_diary_ai_ad_reward(
+  text, text, timestamptz, timestamptz, integer
+) from public, anon, authenticated;
 revoke all on function public.cleanup_diary_ai_rate_limits(timestamptz)
   from public, anon, authenticated;
 revoke all on function public.record_diary_app_visit(text)
@@ -877,6 +990,9 @@ grant execute on function public.refund_diary_ai_inspection_quota(
 ) to service_role;
 grant execute on function public.read_diary_ai_inspection_quota(
   text, text, timestamptz, timestamptz
+) to service_role;
+grant execute on function public.grant_diary_ai_ad_reward(
+  text, text, timestamptz, timestamptz, integer
 ) to service_role;
 grant execute on function public.cleanup_diary_ai_rate_limits(timestamptz)
   to service_role;

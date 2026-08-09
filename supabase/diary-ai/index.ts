@@ -25,7 +25,12 @@ const USAGE_LIMITS = {
   ipBurstWindowSeconds: 10 * 60,
   ipBurst: 20,
   ipDaily: 100,
-  userDaily: 3,
+  // 무료로 주는 하루 기회. 리워드 광고를 끝까지 보면 여기에 adRewardBonus가
+  // 더해져 하루 최대 3회가 됩니다.
+  userDaily: 2,
+  // 광고로 늘릴 수 있는 하루 최대 횟수. 이 값이 곧 "광고는 하루 한 번만"이라는
+  // 규칙 자체이고, 실제 상한은 DB의 grant 함수가 잡습니다.
+  adRewardBonus: 1,
   // Cost circuit breaker: the real ceiling on a day's spend. Split per action
   // so a flood of cheap analyses cannot starve the expensive sketch budget.
   serviceDaily: { sketch: 150, analyze: 250 },
@@ -223,11 +228,19 @@ interface QuotaSnapshot {
   region: QuotaRegion;
   /** Lets the client hide quota UI while the server deliberately bypasses it. */
   testMode: boolean;
+  /**
+   * False once today's rewarded-ad bonus has been claimed. The client needs
+   * this to stop offering the ad — `all.limit` alone cannot say whether a limit
+   * of 3 means "bonus already added" or "bonus still available".
+   */
+  adRewardAvailable: boolean;
 }
 
 // Raw counters as the database returns them.
 interface QuotaCounts {
   userAll: number;
+  /** Extra daily requests this device unlocked by watching a rewarded ad. */
+  userBonus: number;
   ipShort: number;
   ipDay: number;
   serviceSketch: number;
@@ -306,6 +319,7 @@ async function hashIdentifiers(
 
 const COUNT_KEYS = [
   "userAll",
+  "userBonus",
   "ipShort",
   "ipDay",
   "serviceSketch",
@@ -367,11 +381,14 @@ function buildSnapshot(
   decision?: string,
 ): QuotaSnapshot {
   return {
-    all: counter(counts.userAll, USAGE_LIMITS.userDaily),
+    // The bonus raises this device's ceiling rather than discounting its usage,
+    // so "2/3" after an ad reads the same way "1/2" did before it.
+    all: counter(counts.userAll, USAGE_LIMITS.userDaily + counts.userBonus),
     resetAt: new Date(Date.parse(dayWindowStart) + DAY_MS).toISOString(),
     blocked: blockedReason(counts, decision),
     region,
     testMode: false,
+    adRewardAvailable: counts.userBonus < USAGE_LIMITS.adRewardBonus,
   };
 }
 
@@ -385,6 +402,9 @@ function testModeSnapshot(request: Request): QuotaSnapshot {
     blocked: null,
     region: requestRegion(request),
     testMode: true,
+    // Test mode bypasses the counters entirely, so there is no exhausted state
+    // for an ad to relieve — offering one would be a button that does nothing.
+    adRewardAvailable: false,
   };
 }
 
@@ -530,6 +550,51 @@ async function readQuota(
     log.error(`quota read failed — ${error?.message ?? "invalid result"}`);
     throw new FunctionError("rate-limit-unavailable", 503);
   }
+  return buildSnapshot(counts, dayWindowStart, requestRegion(request));
+}
+
+/**
+ * Adds today's rewarded-ad bonus for this device.
+ *
+ * Deliberately idempotent rather than "once per call": the client can only tell
+ * us an ad finished, and a dropped response, a double tap or a replayed request
+ * would otherwise each buy another request. The database caps the counter at
+ * `adRewardBonus`, so every call after the first is a no-op that still returns
+ * the current numbers — which is exactly what the client needs to re-render.
+ *
+ * There is no server-side verification of the ad itself; the Toss rewarded-ad
+ * API exposes no SSV callback, so a caller that never watched anything can
+ * still claim the bonus. That is bounded on purpose: one extra request per
+ * device per day, under the same IP and service ceilings as everything else.
+ */
+async function grantAdReward(
+  request: Request,
+  log: RequestLog,
+): Promise<QuotaSnapshot> {
+  const { userHash, ipHash } = await hashIdentifiers(request);
+  const { shortWindowStart, dayWindowStart } = windowStarts();
+
+  const { data, error } = await adminClient().rpc("grant_diary_ai_ad_reward", {
+    p_user_hash: userHash,
+    p_ip_hash: ipHash,
+    p_short_window_start: shortWindowStart,
+    p_day_window_start: dayWindowStart,
+    p_max_bonus: USAGE_LIMITS.adRewardBonus,
+  });
+
+  const counts = parseCounts(data);
+  const decision = (data as { decision?: unknown } | null)?.decision;
+  if (error || counts === null || typeof decision !== "string") {
+    log.error(`ad reward failed — ${error?.message ?? "invalid result"}`);
+    throw new FunctionError("rate-limit-unavailable", 503);
+  }
+
+  log.debug(
+    `ad reward ${decision} — device ${counts.userAll}/${
+      USAGE_LIMITS.userDaily + counts.userBonus
+    }, bonus ${counts.userBonus}`,
+  );
+
   return buildSnapshot(counts, dayWindowStart, requestRegion(request));
 }
 
@@ -1340,6 +1405,19 @@ Deno.serve(async (request) => {
       log.debug(
         `quota-status ok — all ${quota.all.used}/${quota.all.limit}`,
       );
+      return responseJson({ quota });
+    }
+    // Same placement rationale as quota-status: this only touches counters, so
+    // a missing OPENAI_API_KEY must not stop a user from banking their reward.
+    if (body?.action === "grant-ad-reward") {
+      if (QUOTA_TEST_MODE) {
+        log.info("grant-ad-reward ok — test mode (not counted)");
+        return responseJson({ quota: testModeSnapshot(request) });
+      }
+      enforceStatusLimit(
+        requireString(request.headers.get("x-diary-client-id"), "client-id"),
+      );
+      const quota = await grantAdReward(request, log);
       return responseJson({ quota });
     }
     if (isProgressAction(body?.action)) {
