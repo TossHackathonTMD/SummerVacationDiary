@@ -51,7 +51,7 @@
      than inherited from each view's own gap: matching the calendar's spacing
      everywhere is the point, so a single number beats two that happen to
      agree. */
-  --banner-ad-gap: 28px;
+  --banner-ad-gap: 15px;
 }
 
 /* Focus hides the bottom CTA immediately, before a mobile WebView finishes
@@ -490,8 +490,7 @@ html:has(
 
 /* 사진 선택과 미리보기는 한 화면 안에서 완결되는 단계입니다. 뷰포트
    높이를 넘겨 문서 스크롤이 생기지 않도록 남은 공간을 본문에 배분합니다. */
-.app-shell-upload,
-.app-shell-preview {
+.app-shell-upload {
   display: flex;
   height: 100vh;
   height: 100dvh;
@@ -506,40 +505,9 @@ html:has(
   overflow: hidden;
 }
 
-/* The preview no longer fits in one screen. With a banner ad above it the
-   diary card is taller than the height that is left, so the body scrolls;
-   the header, the banner and the step indicator are siblings of .step-body,
-   so they stay pinned and only the card area moves.
-
-   The CTA clearance is a margin, not the padding .step-body normally uses,
-   for two reasons. Whether a scroll container's block-end padding counts as
-   scrollable overflow differs between engines — and worse, padding would
-   leave the card sitting under the fixed buttons at rest, so the bug would
-   still be the first thing on screen and only scrolling would clear it. A
-   margin ends the scroll viewport above the buttons instead: nothing ever
-   overlaps, at any scroll position, and there is no dead scroll range that
-   reveals nothing. 58 (button) + 16 (.app-bottom-bar offset) + 16 (air). */
-.app-shell-preview > .step-body {
-  min-height: 0;
-  flex: 1 1 auto;
-  /* Explicit rather than left to overflow-y: a lone overflow-y computes the
-     other axis from visible to auto, which the diary card's drop shadow and
-     the step list's translateX would then turn into a horizontal scrollbar.
-     Clipping on x is what happens today, so this is not a regression. */
-  overflow-x: hidden;
-  overflow-y: auto;
-  /* `contain`, not `none`: chaining out to the shell is already blocked, and
-     the local rubber-band is what tells an iOS reader they hit the end. */
-  overscroll-behavior: contain;
-  margin-bottom: calc(var(--app-control-height) + 32px + var(--app-safe-bottom));
-  padding-bottom: 0;
-  -webkit-overflow-scrolling: touch;
-}
-
 /* While the AI is working the CTA is hidden and the stage flexes to fill
    whatever is left, so there is nothing to scroll and no button to clear. */
 .app-shell-preview > .step-body.is-processing {
-  margin-bottom: 0;
   padding-bottom: calc(24px + var(--app-safe-bottom));
 }
 
@@ -1416,7 +1384,7 @@ html:has(
   width: auto;
   min-height: 50px;
   box-sizing: border-box;
-  margin: -2px clamp(16px, 5vw, 24px) 5px;
+  margin: -2px clamp(16px, 5vw, 24px) 9px;
   padding: 8px 12px;
   border: 1px solid rgba(80, 142, 181, 0.14);
   border-radius: 20px 15px 18px 17px;
@@ -4359,6 +4327,32 @@ html:has(
   box-sizing: border-box;
 }
 
+/* No ad is ever attached in placeholder mode, so the slot stays empty — but it
+   still inherits the frame above, which an empty box draws as a 2px strip. */
+.banner-ad.is-placeholder .banner-ad-slot {
+  display: none;
+}
+
+/* Matches the geometry a real banner occupies — full width, 96px tall, and the
+   same asymmetric radius the slot frame uses — so layout tuned against this
+   holds once a real ad loads. The border is dashed rather than solid purely so
+   a stand-in is never mistaken for a delivered ad.
+   Only ever visible when VITE_AD_PLACEHOLDER=true. */
+.banner-ad-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 96px;
+  box-sizing: border-box;
+  border: 1px dashed rgba(80, 142, 181, 0.42);
+  border-radius: 15px 12px 14px 13px;
+  background: rgba(80, 142, 181, 0.06);
+  color: rgba(70, 125, 160, 0.75);
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
 .diary-streak-lead {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
@@ -4752,7 +4746,7 @@ html:has(
   width: 100%;
   max-width: 470px;
   box-sizing: border-box;
-  margin: 4px auto 8px;
+  margin: 4px auto 3px;
   padding: 9px 11px 8px;
   overflow: hidden;
   border: 2px solid rgba(219, 105, 78, 0.38);

@@ -11,12 +11,26 @@
  * renders at zero height until the SDK confirms an ad was actually drawn: in a
  * plain browser (and whenever the network returns no fill) there is no ad, and
  * reserving a 96px gap for it would leave a permanent hole above the diary.
+ * `VITE_AD_PLACEHOLDER=true` opts out of that collapse so the space can be
+ * laid out during development.
  */
 
 import { TossAds } from "@apps-in-toss/web-framework";
 import { useEffect, useRef, useState } from "react";
 
 import { BANNER_AD_GROUP_ID } from "../constants/ads";
+
+/**
+ * Renders a stand-in block wherever a real banner cannot load. Real ads only
+ * ever appear inside the production Toss app — not in a browser, and not in
+ * the sandbox, which excludes in-app ads by design — so without this the space
+ * around a banner could not be laid out until after a console deploy.
+ *
+ * Driven by an env flag rather than `import.meta.env.DEV` so the placeholder
+ * can be switched off while still running the dev server, and so it can never
+ * follow a production bundle: `ait build` runs without the flag set.
+ */
+const SHOW_AD_PLACEHOLDER = import.meta.env.VITE_AD_PLACEHOLDER === "true";
 
 /**
  * Resolves to whether the ads SDK is usable. Cached forever after the first
@@ -45,9 +59,21 @@ function ensureAdsInitialized(): Promise<boolean> {
   return initialization;
 }
 
+/** `ad` and `placeholder` both occupy space; only `ad` involves the SDK. */
+type SlotState = "hidden" | "ad" | "placeholder";
+
+/** Where the slot rests whenever no real ad is on screen. */
+const IDLE_STATE: SlotState = SHOW_AD_PLACEHOLDER ? "placeholder" : "hidden";
+
 export function BannerAd() {
   const slotRef = useRef<HTMLDivElement>(null);
-  const [rendered, setRendered] = useState(false);
+  // Starts at the idle state instead of waiting on the SDK. The sandbox ships
+  // the ads bridge but serves no ads, and in that case neither the failure
+  // callbacks nor the "unsupported" branch is guaranteed to fire — a
+  // placeholder gated behind either one would stay invisible there. Showing it
+  // first and letting a real onAdRendered replace it is the only arrangement
+  // that does not depend on which signal the runtime happens to send.
+  const [state, setState] = useState<SlotState>(IDLE_STATE);
 
   useEffect(() => {
     // Guards the async gap: the view can unmount while initialize() is still
@@ -57,7 +83,11 @@ export function BannerAd() {
 
     void ensureAdsInitialized().then((ready) => {
       const target = slotRef.current;
-      if (!ready || cancelled || target === null) {
+      if (cancelled || target === null) {
+        return;
+      }
+      if (!ready) {
+        // Plain browsers land here: no Toss bridge, so nothing to attach to.
         return;
       }
       try {
@@ -78,17 +108,20 @@ export function BannerAd() {
             // the layout exactly as it was.
             onAdRendered: () => {
               if (!cancelled) {
-                setRendered(true);
+                setState("ad");
               }
             },
             onAdFailedToRender: () => {
               if (!cancelled) {
-                setRendered(false);
+                setState(IDLE_STATE);
               }
             },
+            // Not a bug on its own: Toss withholds delivery when eCPM falls
+            // below its internal threshold, so an approved live unit can
+            // legitimately return no fill.
             onNoFill: () => {
               if (!cancelled) {
-                setRendered(false);
+                setState(IDLE_STATE);
               }
             },
           },
@@ -109,9 +142,25 @@ export function BannerAd() {
     };
   }, []);
 
+  // `is-rendered` carries the spacing both occupied states need; `is-placeholder`
+  // additionally hides the empty slot, whose frame would otherwise draw as a
+  // stray 2px strip above the stand-in.
+  const className = [
+    "banner-ad",
+    state === "hidden" ? null : "is-rendered",
+    state === "placeholder" ? "is-placeholder" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className={`banner-ad${rendered ? " is-rendered" : ""}`} aria-label="광고">
+    <div className={className} aria-label="광고">
+      {/* The SDK requires this container's interior to stay empty, so the
+          placeholder is a sibling rather than a child. */}
       <div ref={slotRef} className="banner-ad-slot" />
+      {state === "placeholder" ? (
+        <div className="banner-ad-placeholder">광고 영역 · 96px</div>
+      ) : null}
     </div>
   );
 }

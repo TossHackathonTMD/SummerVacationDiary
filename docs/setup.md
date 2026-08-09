@@ -56,6 +56,9 @@ VITE_AI_TEST_MODE=true
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | 빈 값                               | `apikey` header              |
 | `VITE_AI_TEST_MODE`             | 코드 기본 `false`, 예시 파일 `true` | `true`면 그림 생성 요청 생략 |
 | `AIT_DEV_HOST`                  | LAN IPv4 자동 탐색 후 `localhost`   | 샌드박스가 접속할 개발 host  |
+| `VITE_AD_PLACEHOLDER`           | 빈 값                               | `true`면 배너 광고 자리 표시 |
+
+`VITE_AD_PLACEHOLDER=true`는 실제 광고가 뜨지 않는 환경(브라우저·샌드박스)에서 배너 자리에 96px 자리표시자를 그립니다. 레이아웃 확인 전용이므로 배포 빌드에서는 설정하지 않습니다.
 
 두 Supabase 값 중 하나만 있으면 `isSupabaseConfigured`가 false가 되어 전체 외부 요청을 사용하지 않습니다.
 
@@ -170,6 +173,7 @@ npm run build
 | 그림 생성이 호출되지 않음         | `VITE_AI_TEST_MODE`가 `true`인지                                    |
 | 샌드박스가 개발 서버를 찾지 못함  | 8081·5173 reverse 또는 `AIT_DEV_HOST`                               |
 | 저장이 브라우저 다운로드로 동작   | Toss/샌드박스 운영 환경이 아니면 정상 fallback                      |
+| 배너 광고가 보이지 않음           | 브라우저·샌드박스는 인앱 광고 미지원. `VITE_AD_PLACEHOLDER=true` 사용 |
 | 일기 달력 기록이 다른 환경에 없음 | 브라우저 origin과 Toss `Storage`는 서로 동기화되지 않는 것이 정상   |
 | 네 번째 일기가 보관되지 않음      | 같은 날짜에는 서로 다른 완성 일기를 최대 3개까지 보관               |
 | 이전 일기가 시작 시 복원되지 않음 | 현재 `App.tsx`가 `restoreOnStart: false`로 의도적으로 새 draft 사용 |
