@@ -62,9 +62,15 @@ export function BannerAd() {
       }
       try {
         slot = TossAds.attachBanner(BANNER_AD_GROUP_ID, target, {
-          // `auto` follows the Toss app's own light/dark setting, which is the
-          // only one of the three that cannot clash with the surrounding UI.
-          theme: "auto",
+          // This diary has no dark mode — every surface it draws is light
+          // paper under a light sky. `auto` would let the SDK repaint the ad
+          // near-black whenever the Toss app itself is dark, which is the one
+          // outcome that actually clashes. Pinning it light is an option the
+          // SDK offers, not a restyle of the ad, so it stays within the ad
+          // guidelines. `expanded` keeps the ad at the same inline inset as
+          // every other card; `card` would add its own 10px and round the
+          // corners symmetrically, which this app's hand-drawn frames do not.
+          theme: "light",
           tone: "blackAndWhite",
           variant: "expanded",
           callbacks: {
