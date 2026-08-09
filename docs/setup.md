@@ -57,8 +57,11 @@ VITE_AI_TEST_MODE=true
 | `VITE_AI_TEST_MODE`             | 코드 기본 `false`, 예시 파일 `true` | `true`면 그림 생성 요청 생략 |
 | `AIT_DEV_HOST`                  | LAN IPv4 자동 탐색 후 `localhost`   | 샌드박스가 접속할 개발 host  |
 | `VITE_AD_PLACEHOLDER`           | 빈 값                               | `true`면 배너 광고 자리 표시 |
+| `VITE_USE_TEST_ADS`             | 빈 값                               | `true`면 테스트 광고 ID 사용 |
 
 `VITE_AD_PLACEHOLDER=true`는 실제 광고가 뜨지 않는 환경(브라우저·샌드박스)에서 배너 자리에 96px 자리표시자를 그립니다. 레이아웃 확인 전용이므로 배포 빌드에서는 설정하지 않습니다.
+
+`VITE_USE_TEST_ADS`는 `.env`에 두지 않는 편이 안전합니다. QR 테스트 빌드는 `npm run build:test`가 이 값을 직접 넘기므로, `.env`에 남겨두면 출시 빌드까지 테스트 ID로 나갈 수 있습니다. 자세한 내용은 [배포](./deployment.md#광고-id와-빌드-구분)를 참고합니다.
 
 두 Supabase 값 중 하나만 있으면 `isSupabaseConfigured`가 false가 되어 전체 외부 요청을 사용하지 않습니다.
 

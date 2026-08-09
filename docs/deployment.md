@@ -45,6 +45,25 @@ npm run deploy
 
 이 저장소에는 콘솔 credential을 저장하지 않습니다.
 
+## 광고 ID와 빌드 구분
+
+인앱 광고는 실제 토스 앱에서만 렌더링됩니다. 브라우저와 샌드박스는 인앱 광고를 지원하지 않으므로, 광고 확인은 콘솔 `테스트하기` QR로 실제 토스 앱에서만 가능합니다.
+
+QR 테스트에는 반드시 테스트 광고 ID를 사용합니다. 라이브 ID로 테스트하면 정책 위반으로 간주될 수 있습니다. 심사 제출 번들은 테스트한 번들과 동일할 필요가 없으므로, 두 번 빌드해 각각 배포합니다.
+
+| 목적          | 명령                 | 광고 ID   |
+| ------------- | -------------------- | --------- |
+| QR 테스트     | `npm run build:test` | 테스트 ID |
+| 심사·출시     | `npm run build`      | 라이브 ID |
+
+`build:test`는 `VITE_USE_TEST_ADS=true`를 넘깁니다. 기본값이 라이브인 이유는, 플래그를 잊었을 때 정상 동작하는 출시본이 나오는 편이 수익이 0인 출시본보다 낫기 때문입니다. 분기는 `src/constants/ads.ts`에 있습니다.
+
+출시 빌드는 산출물에서 테스트 ID가 없는지 확인합니다.
+
+```bash
+grep -c "ait-ad-test" dist/web/assets/index-*.js   # 0이어야 합니다
+```
+
 ## 외부 기능 배포
 
 클라이언트는 `{VITE_SUPABASE_URL}/functions/v1/diary-ai`를 호출합니다. 서버 source는 `supabase/diary-ai/`, 전체 DB bootstrap은 `supabase/sql/001_app_database.sql`에서 version 관리합니다. secret과 운영 배포 설정은 저장소에 넣지 않습니다.
