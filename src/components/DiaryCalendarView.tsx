@@ -1,5 +1,11 @@
 import { Modal } from "@toss/tds-mobile";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { formatKoreanDate } from "../constants/diary";
 import type { DiaryProgressView } from "../hooks/useDiaryProgress";
@@ -25,7 +31,14 @@ const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"] as const;
 const DAILY_COMPLETE_STAMP_URL = "/stamps/daily-complete.png";
 
 const REVEAL_VIEWER_DELAY_MS = 1500;
+const DIARY_SWIPE_THRESHOLD_PX = 44;
 type PageDirection = "forward" | "backward";
+
+interface ViewerSwipe {
+  pointerId: number;
+  startX: number;
+  startY: number;
+}
 
 export interface CalendarRevealRequest {
   date: string;
@@ -125,6 +138,7 @@ export function DiaryCalendarView({
   const handledRevealRef = useRef<string | null>(null);
   const initialDateOpenedRef = useRef(false);
   const onRevealCompleteRef = useRef(onRevealComplete);
+  const viewerSwipeRef = useRef<ViewerSwipe | null>(null);
 
   useEffect(() => {
     onRevealCompleteRef.current = onRevealComplete;
@@ -166,6 +180,31 @@ export function DiaryCalendarView({
 
   const summaries = load.status === "ready" ? load.summaries : [];
   const current = viewerIndex === null ? null : viewerEntries[viewerIndex];
+  const viewerOpen = current !== null && current !== undefined;
+
+  useEffect(() => {
+    if (!viewerOpen) {
+      return;
+    }
+
+    const root = document.documentElement;
+    const body = document.body;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const previousBodyTop = body.style.top;
+    const previousBodyLeft = body.style.left;
+
+    body.style.top = `-${scrollY}px`;
+    body.style.left = `-${scrollX}px`;
+    root.setAttribute("data-diary-viewer-open", "");
+
+    return () => {
+      root.removeAttribute("data-diary-viewer-open");
+      body.style.top = previousBodyTop;
+      body.style.left = previousBodyLeft;
+      window.scrollTo(scrollX, scrollY);
+    };
+  }, [viewerOpen]);
 
   useEffect(() => {
     if (
@@ -333,6 +372,58 @@ export function DiaryCalendarView({
       setPageDirection(delta > 0 ? "forward" : "backward");
       return (index + delta + viewerEntries.length) % viewerEntries.length;
     });
+  };
+
+  const startViewerSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (
+      viewerEntries.length < 2 ||
+      !event.isPrimary ||
+      (event.pointerType === "mouse" && event.button !== 0)
+    ) {
+      return;
+    }
+
+    viewerSwipeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const finishViewerSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const swipe = viewerSwipeRef.current;
+    if (swipe === null || swipe.pointerId !== event.pointerId) {
+      return;
+    }
+
+    viewerSwipeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    const deltaX = event.clientX - swipe.startX;
+    const deltaY = event.clientY - swipe.startY;
+    if (
+      Math.abs(deltaX) < DIARY_SWIPE_THRESHOLD_PX ||
+      Math.abs(deltaX) <= Math.abs(deltaY)
+    ) {
+      return;
+    }
+
+    step(deltaX < 0 ? 1 : -1);
+  };
+
+  const cancelViewerSwipe = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (viewerSwipeRef.current?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    viewerSwipeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   };
 
   const openDay = (entries: DiarySummary[], calendarCell: HTMLElement) => {
@@ -578,7 +669,10 @@ export function DiaryCalendarView({
             </div>
 
             <div
-              className={`diary-viewer-stage stack-${Math.min(viewerEntries.length, 3)}`}
+              className={`diary-viewer-stage stack-${Math.min(viewerEntries.length, 3)}${viewerEntries.length > 1 ? " is-swipeable" : ""}`}
+              onPointerDown={startViewerSwipe}
+              onPointerUp={finishViewerSwipe}
+              onPointerCancel={cancelViewerSwipe}
             >
               {recordError !== null ? (
                 <p className="diary-viewer-note" role="alert">
@@ -592,6 +686,7 @@ export function DiaryCalendarView({
                   className={`diary-viewer-image diary-page-${pageDirection}`}
                   src={record.imageDataUrl}
                   alt={`${formatKoreanDate(record.date)}에 쓴 그림일기`}
+                  draggable={false}
                 />
               )}
             </div>

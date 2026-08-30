@@ -52,14 +52,16 @@ body {
   background: var(--summer-page-background);
 }
 
-html[data-onboarding-open] {
+html[data-onboarding-open],
+html[data-diary-viewer-open] {
   height: 100%;
   min-height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
 }
 
-html[data-onboarding-open] body {
+html[data-onboarding-open] body,
+html[data-diary-viewer-open] body {
   position: fixed;
   inset: 0;
   width: 100%;
@@ -69,7 +71,8 @@ html[data-onboarding-open] body {
   overscroll-behavior: none;
 }
 
-html[data-onboarding-open] #root {
+html[data-onboarding-open] #root,
+html[data-diary-viewer-open] #root {
   height: 100%;
   min-height: 0;
   overflow: hidden;

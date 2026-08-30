@@ -5262,7 +5262,9 @@ html:has(
   -webkit-backdrop-filter: blur(10px) saturate(0.85);
   background: rgba(24, 14, 36, 0.62);
   animation: diary-viewer-veil 680ms ease-out both;
-  touch-action: pan-y;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
 @keyframes diary-viewer-veil {
@@ -5361,6 +5363,16 @@ html:has(
   align-items: center;
   justify-content: center;
   padding: 0 12px;
+  touch-action: none;
+  user-select: none;
+}
+
+.diary-viewer-stage.is-swipeable {
+  cursor: grab;
+}
+
+.diary-viewer-stage.is-swipeable:active {
+  cursor: grabbing;
 }
 
 .diary-viewer-stage::before,
