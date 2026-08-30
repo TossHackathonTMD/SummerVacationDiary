@@ -1,8 +1,13 @@
 import { Top, useDialog, useToast } from "@toss/tds-mobile";
-import { graniteEvent, SafeAreaInsets } from "@apps-in-toss/web-framework";
+import {
+  graniteEvent,
+  SafeAreaInsets,
+  Screen,
+} from "@apps-in-toss/web-framework";
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -260,7 +265,7 @@ function App() {
   const quota = useAiQuota();
   const { state: diaryProgress, completeToday: completeDiaryProgress } =
     useDiaryProgress();
-  // Refused outright by country, which unlike the daily budgets never comes
+  // Refused outright by country, which unlike a user credit refill never comes
   // back — so it gates both operations rather than one.
   const regionBlocked = isRegionBlocked(quota);
   const aiQuotaSpent = isAiQuotaSpent(quota);
@@ -271,7 +276,7 @@ function App() {
   const analyzeAllowed = !isAiConnected || (!regionBlocked && !aiQuotaSpent);
 
   // Analysis is triggered explicitly by 검사 받기, not by opening the preview:
-  // with three bundled checks a day, re-running on every edit would spend the
+  // with scarce bundled credits, re-running on every edit would spend the
   // budget on typo fixes. Results are cached by input inside the hook, so
   // asking again without editing is free.
   const { state: analysisState, run: runAnalysis } = useDiaryAnalysis(draft);
@@ -308,6 +313,31 @@ function App() {
     });
   const regionNoticeShownRef = useRef(false);
   const toast = useToast();
+  const exitConfirmPendingRef = useRef(false);
+  const requestAppExit = useCallback(async () => {
+    if (exitConfirmPendingRef.current) {
+      return;
+    }
+
+    exitConfirmPendingRef.current = true;
+    try {
+      const shouldExit = await openConfirm({
+        title: "앱을 종료할까요?",
+        description: "작성 중인 내용은 다음 실행에서 이어지지 않을 수 있어요.",
+        confirmButton: <DiaryButton tone="danger">종료하기</DiaryButton>,
+        cancelButton: <DiaryButton tone="secondary">계속하기</DiaryButton>,
+        closeOnDimmerClick: false,
+      });
+
+      if (shouldExit) {
+        await Screen.close();
+      }
+    } catch {
+      toast.openToast("앱을 종료하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      exitConfirmPendingRef.current = false;
+    }
+  }, [openConfirm, toast]);
   const [saving, setSaving] = useState(false);
   const [renderedDiaryPreview, setRenderedDiaryPreview] =
     useState<RenderedDiaryPreview | null>(null);
@@ -489,8 +519,21 @@ function App() {
     };
 
     window.addEventListener("popstate", handleHistoryNavigation);
-    return () => window.removeEventListener("popstate", handleHistoryNavigation);
+    return () =>
+      window.removeEventListener("popstate", handleHistoryNavigation);
   }, []);
+
+  useEffect(() => {
+    if (!showOnboarding || !("ReactNativeWebView" in window)) {
+      return;
+    }
+
+    return graniteEvent.addEventListener("backEvent", {
+      onEvent: () => {
+        void requestAppExit();
+      },
+    });
+  }, [requestAppExit, showOnboarding]);
 
   useEffect(() => {
     if (step === "upload" || !("ReactNativeWebView" in window)) {
@@ -804,9 +847,9 @@ function App() {
     } else if (analysisState.status === "error" && analysisState.retryable) {
       // Nothing will finish on its own — waiting wouldn't help, so offer a
       // retry (the analysis hook only re-runs on an explicit trigger) or a save
-      // without the comment. A non-retryable failure means the daily budget is
-      // gone, so it falls through and saves: asking would offer something that
-      // cannot happen today.
+      // without the comment. A non-retryable failure cannot succeed on an
+      // immediate retry, so it falls through and saves instead of offering an
+      // action that is guaranteed to fail.
       const retry = await openDiaryConfirm({
         title: "선생님의 한마디를 불러오지 못했어요",
         description:
@@ -1055,6 +1098,7 @@ function App() {
           <AiQuotaNotice progress={diaryProgress} />
           <PhotoUploadStep
             photoDataUrl={draft.photoDataUrl}
+            onRequestExit={requestAppExit}
             hasSessionConsent={hasPhotoSessionConsent}
             onSessionConsent={() => setHasPhotoSessionConsent(true)}
             canRedraw={sketchAllowed}
