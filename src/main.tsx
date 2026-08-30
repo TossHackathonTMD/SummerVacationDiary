@@ -1,14 +1,10 @@
 import { TDSMobileAITProvider } from "@toss/tds-mobile-ait";
-import {
-  Component,
-  StrictMode,
-  type ErrorInfo,
-  type ReactNode,
-} from "react";
+import { Component, StrictMode, type ErrorInfo, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App.tsx";
 import { BRAND_PRIMARY_COLOR } from "./constants/brand.ts";
+import { migrateOriginLocalStorage } from "./services/originStorageMigration.ts";
 import "./index.css";
 
 class AppErrorBoundary extends Component<
@@ -46,12 +42,18 @@ class AppErrorBoundary extends Component<
   }
 }
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <AppErrorBoundary>
-      <TDSMobileAITProvider brandPrimaryColor={BRAND_PRIMARY_COLOR}>
-        <App />
-      </TDSMobileAITProvider>
-    </AppErrorBoundary>
-  </StrictMode>,
-);
+async function bootstrap() {
+  await migrateOriginLocalStorage();
+
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <AppErrorBoundary>
+        <TDSMobileAITProvider brandPrimaryColor={BRAND_PRIMARY_COLOR}>
+          <App />
+        </TDSMobileAITProvider>
+      </AppErrorBoundary>
+    </StrictMode>,
+  );
+}
+
+void bootstrap();
