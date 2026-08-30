@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { formatKoreanDate } from "../constants/diary";
 import type { DiaryProgressView } from "../hooks/useDiaryProgress";
@@ -128,9 +129,7 @@ export function DiaryCalendarView({
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [revealingDiaryId, setRevealingDiaryId] = useState<string | null>(
-    null,
-  );
+  const [revealingDiaryId, setRevealingDiaryId] = useState<string | null>(null);
   const [revealViewerPending, setRevealViewerPending] = useState(false);
   const [revealViewerAnimationFinished, setRevealViewerAnimationFinished] =
     useState(false);
@@ -614,140 +613,142 @@ export function DiaryCalendarView({
               {load.message}
             </p>
           )}
-
         </section>
       </div>
 
-      {current !== null && current !== undefined && (
-        // Covers the whole screen, header and bottom bar included, so the only
-        // sharp and bright thing left is the diary itself.
-        <div
-          className="diary-viewer-layer"
-          style={popStyle}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${formatKoreanDate(current.date)}에 저장된 일기 ${viewerEntries.length}편`}
-        >
-          {/* Mounts once per open, so the pop animation plays on opening and
-              not again on every swipe. */}
+      {current !== null &&
+        current !== undefined &&
+        createPortal(
+          // Render outside .app-shell so its overflow and stacking context can
+          // never clip the fixed viewer on a tall or scrolled WebView.
           <div
-            className="diary-viewer-card"
-            onAnimationEnd={(event) => {
-              if (
-                event.target === event.currentTarget &&
-                event.animationName === "diary-viewer-pop" &&
-                revealViewerPending
-              ) {
-                setRevealViewerAnimationFinished(true);
-              }
-            }}
+            className="diary-viewer-layer"
+            style={popStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${formatKoreanDate(current.date)}에 저장된 일기 ${viewerEntries.length}편`}
           >
-            <div className="diary-viewer-nav">
-              <DiaryButton
-                tone="secondary"
-                stable
-                disabled={viewerEntries.length < 2}
-                onClick={() => step(-1)}
-                aria-label="이 날의 이전 일기"
-              >
-                <CalendarArrow direction="left" />
-              </DiaryButton>
-
-              <span className="diary-viewer-count">
-                {(viewerIndex ?? 0) + 1} / {viewerEntries.length}
-              </span>
-
-              <DiaryButton
-                tone="secondary"
-                stable
-                disabled={viewerEntries.length < 2}
-                onClick={() => step(1)}
-                aria-label="이 날의 다음 일기"
-              >
-                <CalendarArrow direction="right" />
-              </DiaryButton>
-            </div>
-
+            {/* Mounts once per open, so the pop animation plays on opening and
+              not again on every swipe. */}
             <div
-              className={`diary-viewer-stage stack-${Math.min(viewerEntries.length, 3)}${viewerEntries.length > 1 ? " is-swipeable" : ""}`}
-              onPointerDown={startViewerSwipe}
-              onPointerUp={finishViewerSwipe}
-              onPointerCancel={cancelViewerSwipe}
+              className="diary-viewer-card"
+              onAnimationEnd={(event) => {
+                if (
+                  event.target === event.currentTarget &&
+                  event.animationName === "diary-viewer-pop" &&
+                  revealViewerPending
+                ) {
+                  setRevealViewerAnimationFinished(true);
+                }
+              }}
             >
-              {recordError !== null ? (
-                <p className="diary-viewer-note" role="alert">
-                  {recordError}
-                </p>
-              ) : record === null ? (
-                <p className="diary-viewer-note">일기를 펴는 중이에요…</p>
-              ) : (
-                <img
-                  key={record.id}
-                  className={`diary-viewer-image diary-page-${pageDirection}`}
-                  src={record.imageDataUrl}
-                  alt={`${formatKoreanDate(record.date)}에 쓴 그림일기`}
-                  draggable={false}
-                />
-              )}
-            </div>
-
-            {deleteError !== null && (
-              <p className="diary-viewer-error" role="alert">
-                {deleteError}
-              </p>
-            )}
-
-            <div className="diary-viewer-actions" aria-busy={deleting}>
-              <DiaryButton
-                tone="danger"
-                stable
-                fullWidth
-                disabled={deleting}
-                aria-busy={deleting}
-                onClick={() => setDeleteConfirmOpen(true)}
-              >
-                일기 삭제
-              </DiaryButton>
-
-              {!manageOnly && (
+              <div className="diary-viewer-nav">
                 <DiaryButton
+                  tone="secondary"
+                  stable
+                  disabled={viewerEntries.length < 2}
+                  onClick={() => step(-1)}
+                  aria-label="이 날의 이전 일기"
+                >
+                  <CalendarArrow direction="left" />
+                </DiaryButton>
+
+                <span className="diary-viewer-count">
+                  {(viewerIndex ?? 0) + 1} / {viewerEntries.length}
+                </span>
+
+                <DiaryButton
+                  tone="secondary"
+                  stable
+                  disabled={viewerEntries.length < 2}
+                  onClick={() => step(1)}
+                  aria-label="이 날의 다음 일기"
+                >
+                  <CalendarArrow direction="right" />
+                </DiaryButton>
+              </div>
+
+              <div
+                className={`diary-viewer-stage stack-${Math.min(viewerEntries.length, 3)}${viewerEntries.length > 1 ? " is-swipeable" : ""}`}
+                onPointerDown={startViewerSwipe}
+                onPointerUp={finishViewerSwipe}
+                onPointerCancel={cancelViewerSwipe}
+              >
+                {recordError !== null ? (
+                  <p className="diary-viewer-note" role="alert">
+                    {recordError}
+                  </p>
+                ) : record === null ? (
+                  <p className="diary-viewer-note">일기를 펴는 중이에요…</p>
+                ) : (
+                  <img
+                    key={record.id}
+                    className={`diary-viewer-image diary-page-${pageDirection}`}
+                    src={record.imageDataUrl}
+                    alt={`${formatKoreanDate(record.date)}에 쓴 그림일기`}
+                    draggable={false}
+                  />
+                )}
+              </div>
+
+              {deleteError !== null && (
+                <p className="diary-viewer-error" role="alert">
+                  {deleteError}
+                </p>
+              )}
+
+              <div className="diary-viewer-actions" aria-busy={deleting}>
+                <DiaryButton
+                  tone="danger"
                   stable
                   fullWidth
-                  data-interaction-disabled={shareUnavailable || undefined}
-                  tabIndex={shareUnavailable ? -1 : undefined}
+                  disabled={deleting}
+                  aria-busy={deleting}
+                  onClick={() => setDeleteConfirmOpen(true)}
+                >
+                  일기 삭제
+                </DiaryButton>
+
+                {!manageOnly && (
+                  <DiaryButton
+                    stable
+                    fullWidth
+                    data-interaction-disabled={shareUnavailable || undefined}
+                    tabIndex={shareUnavailable ? -1 : undefined}
+                    onClick={() => {
+                      if (!shareUnavailable && record !== null) {
+                        onShareRequest({
+                          imageDataUrl: record.imageDataUrl,
+                          fileName: diaryFileName(record),
+                        });
+                      }
+                    }}
+                  >
+                    저장 및 공유
+                  </DiaryButton>
+                )}
+
+                <DiaryButton
+                  tone="secondary"
+                  stable
+                  fullWidth
+                  data-interaction-disabled={deleting || undefined}
+                  tabIndex={deleting ? -1 : undefined}
                   onClick={() => {
-                    if (!shareUnavailable && record !== null) {
-                      onShareRequest({
-                        imageDataUrl: record.imageDataUrl,
-                        fileName: diaryFileName(record),
-                      });
+                    if (deleting) {
+                      return;
                     }
+                    setManageOnly(false);
+                    setViewerIndex(null);
                   }}
                 >
-                  저장 및 공유
+                  뒤로가기
                 </DiaryButton>
-              )}
-
-              <DiaryButton
-                tone="secondary"
-                stable
-                fullWidth
-                data-interaction-disabled={deleting || undefined}
-                tabIndex={deleting ? -1 : undefined}
-                onClick={() => {
-                  if (deleting) {
-                    return;
-                  }
-                  setManageOnly(false);
-                  setViewerIndex(null);
-                }}
-              >
-                뒤로가기
-              </DiaryButton>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
 
       <Modal open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <Modal.Overlay />

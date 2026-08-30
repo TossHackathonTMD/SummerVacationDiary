@@ -15,12 +15,16 @@ import {
 } from "react";
 
 import "./App.css";
+import "./winter-theme.css";
 import { AiQuotaNotice, AiRecheckNotice } from "./components/AiQuotaNotice";
 import { BannerAd } from "./components/BannerAd";
 import { DiaryButton } from "./components/DiaryButton";
 import { PhotoUploadStep } from "./components/PhotoUploadStep";
 import { RewardedAdCallout } from "./components/RewardedAdCallout";
+import { SeasonThemeReset } from "./components/SeasonThemeReset";
+import { SeasonThemeUnlock } from "./components/SeasonThemeUnlock";
 import { StreakMilestoneModal } from "./components/StreakMilestoneModal";
+import { WinterOnboarding } from "./components/WinterOnboarding";
 import {
   TODAY_DIARY_FULL_TITLE,
   todayDiaryFullDescription,
@@ -55,6 +59,8 @@ import {
 } from "./services/diaryStore";
 import { isSketchAiConnected } from "./services/styleTransfer";
 import type { DiaryMilestone } from "./services/diaryProgress";
+import { seasonCopy } from "./constants/seasonTheme";
+import { useSeasonTheme } from "./hooks/useSeasonTheme";
 
 // Plain state instead of a router: the flow is a strict 3-step wizard. The
 // calendar is the one externally addressable destination, so its deep-link
@@ -224,6 +230,8 @@ function AppBottomBar({
 }
 
 function App() {
+  const { theme, activateWinter, returnToSummer } = useSeasonTheme();
+  const seasonalCopy = seasonCopy(theme);
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isIos =
     /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
@@ -287,7 +295,6 @@ function App() {
   const {
     state: sketchState,
     retry: retrySketch,
-    discardSketch,
     isDrawingInProgress,
   } = useSketch(
     draft,
@@ -620,6 +627,17 @@ function App() {
   }, [openAlert, regionBlocked, showOnboarding]);
 
   const header = STEP_HEADERS[step];
+  const headerTitle =
+    step !== "upload" ? (
+      header.title
+    ) : theme === "winter" ? (
+      seasonalCopy.uploadTitle
+    ) : (
+      <>
+        어떤 <SeasonThemeUnlock onUnlock={activateWinter} />
+        이었나요?
+      </>
+    );
   // The upload screen already has the streak/quota card and photo picker, so a
   // step counter adds more density than guidance there. Keep it only after the
   // user has entered the actual writing flow.
@@ -656,6 +674,15 @@ function App() {
     (isAiConnected && analysisState.status === "success");
 
   if (showOnboarding) {
+    if (theme === "winter") {
+      return (
+        <WinterOnboarding
+          onStart={() => setShowOnboarding(false)}
+          onReset={returnToSummer}
+        />
+      );
+    }
+
     return (
       <main className="onboarding" aria-label="나의 여름방학 일기 시작 화면">
         <div className="onboarding-scene">
@@ -996,7 +1023,7 @@ function App() {
 
   return (
     <main
-      className={`app-shell app-shell-${step} weather-${draft.weather} time-${draft.timeOfDay}${isAndroid ? " app-shell-android" : ""}${isKeyboardClosing ? " app-keyboard-closing" : ""}`}
+      className={`app-shell app-shell-${step} weather-${draft.weather} time-${draft.timeOfDay}${theme === "winter" ? " theme-winter" : ""}${isAndroid ? " app-shell-android" : ""}${isKeyboardClosing ? " app-keyboard-closing" : ""}`}
     >
       <div
         key={`${draft.weather}-${draft.timeOfDay}-${weatherEffectKey}`}
@@ -1017,11 +1044,10 @@ function App() {
         <span className="summer-weather-lightning summer-weather-lightning-three" />
         <span className="summer-weather-stars" />
       </div>
+      {theme === "winter" && <SeasonThemeReset onReset={returnToSummer} />}
       <Top
         className="app-top"
-        title={
-          <Top.TitleParagraph size={22}>{header.title}</Top.TitleParagraph>
-        }
+        title={<Top.TitleParagraph size={22}>{headerTitle}</Top.TitleParagraph>}
         subtitleBottom={
           <Top.SubtitleParagraph size={15}>
             {header.subtitle}
@@ -1100,33 +1126,19 @@ function App() {
           <RewardedAdCallout />
           <PhotoUploadStep
             photoDataUrl={draft.photoDataUrl}
+            selectButtonLabel={seasonalCopy.selectPhoto}
             onRequestExit={requestAppExit}
             hasSessionConsent={hasPhotoSessionConsent}
             onSessionConsent={() => setHasPhotoSessionConsent(true)}
-            canRedraw={sketchAllowed}
             isDrawingInProgress={isDrawingInProgress}
-            onPhotoChange={({
-              dataUrl,
-              sourceHash,
-              reusedSketchDataUrl,
-              redraw,
-            }) => {
+            onPhotoChange={({ dataUrl, sourceHash }) => {
               setPhotoSourceHash(sourceHash);
-              // 다시 그리기 means the previous drawing is gone for good. Clearing
-              // the draft below is not enough: the caches would hand it straight
-              // back and the ledger would still count this photo as paid for, so
-              // the new request could never go out.
-              if (redraw === true) {
-                discardSketch(dataUrl, sourceHash);
-              }
-              // A sketch belongs to exactly one photo — replacing the photo
-              // must drop the old drawing in the same state update, or the
-              // preview could pair the new photo with the previous sketch. The
-              // one exception is a drawing the user explicitly asked to reuse,
-              // which also keeps the sketch hook from spending a request.
+              // A sketch belongs to the exact cropped image. Replacing the crop
+              // must clear the draft result so useSketch can either reuse that
+              // exact crop's in-session cache or request a new drawing.
               updateDraft({
                 photoDataUrl: dataUrl,
-                sketchDataUrl: reusedSketchDataUrl ?? null,
+                sketchDataUrl: null,
               });
             }}
           />
@@ -1184,6 +1196,7 @@ function App() {
         <Suspense fallback={null}>
           <DiaryShareModal
             open
+            theme={theme}
             imageDataUrl={calendarShareRequest.imageDataUrl}
             fileName={calendarShareRequest.fileName}
             onClose={() => setCalendarShareRequest(null)}
@@ -1194,6 +1207,7 @@ function App() {
       {milestoneVisible && pendingMilestone !== null && (
         <StreakMilestoneModal
           milestone={pendingMilestone}
+          theme={theme}
           onClose={() => {
             setMilestoneVisible(false);
             setPendingMilestone(null);

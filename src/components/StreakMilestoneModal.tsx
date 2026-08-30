@@ -1,13 +1,19 @@
 import { Modal } from "@toss/tds-mobile";
 
+import {
+  seasonalMilestoneMessage,
+  type SeasonTheme,
+} from "../constants/seasonTheme";
 import type { DiaryMilestone } from "../services/diaryProgress";
 import { DiaryButton } from "./DiaryButton";
 
 export function StreakMilestoneModal({
   milestone,
+  theme,
   onClose,
 }: {
   milestone: DiaryMilestone;
+  theme: SeasonTheme;
   onClose: () => void;
 }) {
   return (
@@ -41,7 +47,13 @@ export function StreakMilestoneModal({
             <h2 id="streak-milestone-title" className="app-modal-title">
               {milestone.title}
             </h2>
-            <p id="streak-milestone-description">{milestone.message}</p>
+            <p id="streak-milestone-description">
+              {seasonalMilestoneMessage(
+                theme,
+                milestone.threshold,
+                milestone.message,
+              )}
+            </p>
           </div>
           <div className="app-modal-footer streak-milestone-footer">
             <DiaryButton stable fullWidth onClick={onClose}>

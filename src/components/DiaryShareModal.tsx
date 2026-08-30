@@ -1,12 +1,14 @@
 import { Modal } from "@toss/tds-mobile";
 import { useRef, useState } from "react";
 
+import type { SeasonTheme } from "../constants/seasonTheme";
 import { DiaryExportError, exportDiaryImage } from "../services/diaryExport";
 import { DiaryShareError, shareDiaryAppLink } from "../services/diaryShare";
 import { DiaryButton } from "./DiaryButton";
 
 interface DiaryShareModalProps {
   open: boolean;
+  theme: SeasonTheme;
   imageDataUrl: string;
   fileName: string;
   onClose: () => void;
@@ -20,6 +22,7 @@ type ActionFeedback = {
 
 export function DiaryShareModal({
   open,
+  theme,
   imageDataUrl,
   fileName,
   onClose,
@@ -40,7 +43,7 @@ export function DiaryShareModal({
       if (action === "save") {
         await exportDiaryImage(imageDataUrl, fileName);
       } else {
-        await shareDiaryAppLink();
+        await shareDiaryAppLink(theme);
       }
     } catch (error) {
       const message =
