@@ -27,6 +27,7 @@ import {
 } from "../utils/diaryCalendar";
 import { DiaryButton } from "./DiaryButton";
 import { DiaryStreakCalendarCard } from "./DiaryStreakStatus";
+import { DeveloperCredits } from "./DeveloperCredits";
 
 const WEEKDAYS = ["월", "화", "수", "목", "금", "토", "일"] as const;
 const DAILY_COMPLETE_STAMP_URL = "/stamps/daily-complete.png";
@@ -614,6 +615,7 @@ export function DiaryCalendarView({
             </p>
           )}
         </section>
+        <DeveloperCredits />
       </div>
 
       {current !== null &&

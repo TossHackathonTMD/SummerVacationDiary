@@ -15,16 +15,7 @@ const WINTER_DECORATIONS = [
   ["penguin", "penguin.png"],
 ] as const;
 
-const TITLE_CHARACTERS = [
-  ["na", "나"],
-  ["ui", "의"],
-  ["gyeo", "겨"],
-  ["ul", "울"],
-  ["bang", "방"],
-  ["hak", "학"],
-  ["il", "일"],
-  ["gi", "기"],
-] as const;
+const TITLE_GLYPHS = ["na", "ui", "gyeo", "ul", "bang", "hak", "il", "gi"] as const;
 
 export function WinterOnboarding({
   onStart,
@@ -59,14 +50,15 @@ export function WinterOnboarding({
         />
 
         <h1 className="winter-onboarding-title" aria-label="나의 겨울방학 일기">
-          {TITLE_CHARACTERS.map(([name, character]) => (
-            <span
+          {TITLE_GLYPHS.map((name) => (
+            <img
               key={name}
               className={`winter-onboarding-title-character winter-onboarding-title-${name}`}
+              src={`/winter-theme/title-${name}.png`}
+              alt=""
               aria-hidden="true"
-            >
-              {character}
-            </span>
+              draggable={false}
+            />
           ))}
         </h1>
       </div>
