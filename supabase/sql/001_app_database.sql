@@ -1,12 +1,13 @@
 -- 나의 여름방학 일기 · Supabase database bootstrap
 --
 -- 이 파일은 Supabase SQL Editor에서 한 번에 실행할 수 있습니다.
--- 기존 diary_ai_rate_limits 데이터는 삭제하지 않지만, 같은 이름의 RPC는
--- 현재 Edge Function 계약에 맞는 구현으로 CREATE OR REPLACE 합니다.
+-- 기존 diary_ai_rate_limits 데이터와 legacy RPC는 유지하고, 충전식 사용자
+-- 기회를 위한 table과 v2 RPC를 함께 설치합니다.
 --
 -- 서버에 저장하는 데이터
---   1. 익명 client ID/IP의 salt 포함 SHA-256 hash별 AI quota counter
---   2. 익명 client hash별 방문일과 일기 완성 활동일
+--   1. 익명 client ID의 salt 포함 SHA-256 hash별 AI 검사 잔여량
+--   2. IP와 서비스 범위의 AI quota counter
+--   3. 익명 client hash별 방문일과 일기 완성 활동일
 --
 -- 서버에 저장하지 않는 데이터
 --   사진, 일기 제목·본문·선택 날짜·날씨, 완성 JPEG, AI 분석 결과
@@ -37,7 +38,7 @@ create table if not exists public.diary_ai_rate_limits (
     window_start
   ),
   constraint diary_ai_rate_limits_action_check
-    check (action in ('sketch', 'analyze', 'all', 'ad-reward')),
+    check (action in ('sketch', 'analyze', 'all')),
   constraint diary_ai_rate_limits_request_count_check
     check (request_count >= 0),
   constraint diary_ai_rate_limits_scope_check
@@ -49,18 +50,28 @@ create table if not exists public.diary_ai_rate_limits (
 create index if not exists diary_ai_rate_limits_window_start_idx
   on public.diary_ai_rate_limits (window_start);
 
--- 'ad-reward'는 리워드 광고로 하루 1회 늘려준 보너스를 세는 행입니다.
--- 위 create table은 기존 배포본에는 적용되지 않으므로(if not exists),
--- 이미 만들어진 테이블의 check 제약을 여기서 다시 붙입니다. 이 스크립트를
--- 통째로 다시 실행해도 안전하도록 drop 후 add 하는 형태로 씁니다.
-alter table public.diary_ai_rate_limits
-  drop constraint if exists diary_ai_rate_limits_action_check;
-alter table public.diary_ai_rate_limits
-  add constraint diary_ai_rate_limits_action_check
-    check (action in ('sketch', 'analyze', 'all', 'ad-reward'));
-
 alter table public.diary_ai_rate_limits enable row level security;
 revoke all on table public.diary_ai_rate_limits
+  from public, anon, authenticated;
+
+-- 사용자에게 보이는 AI 검사 기회입니다. 최초 2개를 지급하고 매일
+-- 00:00 UTC(09:00 KST) 경계마다 1개를 충전하되 2개를 넘지 않습니다.
+create table if not exists public.diary_ai_user_credits (
+  user_hash text primary key,
+  balance smallint not null default 2,
+  last_refill_slot timestamptz not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint diary_ai_user_credits_hash_check
+    check (user_hash ~ '^[0-9a-f]{64}$'),
+  constraint diary_ai_user_credits_balance_check
+    check (balance between 0 and 2),
+  constraint diary_ai_user_credits_refill_slot_check
+    check (last_refill_slot = date_trunc('day', last_refill_slot, 'UTC'))
+);
+
+alter table public.diary_ai_user_credits enable row level security;
+revoke all on table public.diary_ai_user_credits
   from public, anon, authenticated;
 
 -- Edge Function에서 만든 SHA-256 hex만 DB 식별자로 받습니다.
@@ -138,6 +149,63 @@ begin
 end;
 $$;
 
+-- 호출 시점까지 지난 오전 9시 충전을 지연 반영하고 현재 잔여량을
+-- 반환합니다. 행 잠금 때문에 같은 사용자의 조회·차감·환불이 직렬화됩니다.
+create or replace function private.refresh_diary_user_credit(
+  p_user_hash text,
+  p_refill_slot timestamptz,
+  p_capacity integer
+)
+returns integer
+language plpgsql
+set search_path = pg_catalog, public
+as $$
+declare
+  v_balance integer;
+  v_last_refill_slot timestamptz;
+  v_elapsed_slots integer;
+begin
+  if p_refill_slot is null
+     or p_refill_slot <> date_trunc('day', p_refill_slot, 'UTC')
+     or p_capacity <> 2 then
+    raise exception using errcode = '22023', message = 'invalid credit arguments';
+  end if;
+
+  insert into public.diary_ai_user_credits (
+    user_hash,
+    balance,
+    last_refill_slot
+  ) values (
+    p_user_hash,
+    p_capacity,
+    p_refill_slot
+  )
+  on conflict (user_hash) do nothing;
+
+  select balance, last_refill_slot
+  into v_balance, v_last_refill_slot
+  from public.diary_ai_user_credits
+  where user_hash = p_user_hash
+  for update;
+
+  v_elapsed_slots := greatest(
+    0,
+    floor(extract(epoch from (p_refill_slot - v_last_refill_slot)) / 86400)::integer
+  );
+
+  if v_elapsed_slots > 0 then
+    v_balance := least(p_capacity, v_balance + v_elapsed_slots);
+    update public.diary_ai_user_credits
+    set balance = v_balance,
+        last_refill_slot = p_refill_slot,
+        updated_at = clock_timestamp()
+    where user_hash = p_user_hash;
+  end if;
+
+  return v_balance;
+end;
+$$;
+
 -- 유료 OpenAI 호출 전에 모든 관련 counter를 한 transaction에서 검사하고
 -- 허용된 경우에만 함께 증가시킵니다. service 일일 lock을 포함한 하나의
 -- advisory lock으로 병렬 요청의 check-then-increment 경쟁을 막습니다.
@@ -162,7 +230,6 @@ as $$
 declare
   v_decision text := 'allowed';
   v_user_all integer;
-  v_user_bonus integer;
   v_ip_short integer;
   v_ip_day integer;
   v_service_sketch integer;
@@ -194,13 +261,6 @@ begin
   v_user_all := private.read_diary_quota_counter(
     'user', p_user_hash, 'all', 'day', p_day_window_start
   );
-  -- 리워드 광고로 얻은 오늘의 보너스. grant 함수가 1회로 막아두므로 사실상
-  -- 0 또는 1이고, 그만큼 이 기기의 하루 한도를 올려줍니다. 한도를 올리는
-  -- 대신 사용량을 깎지 않는 이유는, 사용자가 실제로 몇 번 썼는지가 그대로
-  -- 남아 있어야 로그와 화면의 "n/N" 표시가 서로 어긋나지 않기 때문입니다.
-  v_user_bonus := private.read_diary_quota_counter(
-    'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
-  );
   v_ip_short := private.read_diary_quota_counter(
     'ip', p_ip_hash, 'all', 'short', p_short_window_start
   );
@@ -214,7 +274,7 @@ begin
     'service', 'global', 'analyze', 'day', p_day_window_start
   );
 
-  if v_user_all >= p_user_daily_limit + v_user_bonus then
+  if v_user_all >= p_user_daily_limit then
     v_decision := 'device-daily';
   elsif v_ip_short >= p_ip_short_limit then
     v_decision := 'ip-short';
@@ -252,7 +312,6 @@ begin
   return jsonb_build_object(
     'decision', v_decision,
     'userAll', v_user_all,
-    'userBonus', v_user_bonus,
     'ipShort', v_ip_short,
     'ipDay', v_ip_day,
     'serviceSketch', v_service_sketch,
@@ -276,7 +335,6 @@ set search_path = pg_catalog, public, private
 as $$
 declare
   v_user_all integer;
-  v_user_bonus integer;
   v_ip_short integer;
   v_ip_day integer;
   v_service_sketch integer;
@@ -345,9 +403,6 @@ begin
   v_user_all := private.read_diary_quota_counter(
     'user', p_user_hash, 'all', 'day', p_day_window_start
   );
-  v_user_bonus := private.read_diary_quota_counter(
-    'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
-  );
   v_ip_short := private.read_diary_quota_counter(
     'ip', p_ip_hash, 'all', 'short', p_short_window_start
   );
@@ -363,7 +418,6 @@ begin
 
   return jsonb_build_object(
     'userAll', v_user_all,
-    'userBonus', v_user_bonus,
     'ipShort', v_ip_short,
     'ipDay', v_ip_day,
     'serviceSketch', v_service_sketch,
@@ -386,7 +440,6 @@ set search_path = pg_catalog, public, private
 as $$
 declare
   v_user_all integer;
-  v_user_bonus integer;
   v_ip_short integer;
   v_ip_day integer;
   v_service_sketch integer;
@@ -402,9 +455,6 @@ begin
   v_user_all := private.read_diary_quota_counter(
     'user', p_user_hash, 'all', 'day', p_day_window_start
   );
-  v_user_bonus := private.read_diary_quota_counter(
-    'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
-  );
   v_ip_short := private.read_diary_quota_counter(
     'ip', p_ip_hash, 'all', 'short', p_short_window_start
   );
@@ -420,7 +470,6 @@ begin
 
   return jsonb_build_object(
     'userAll', v_user_all,
-    'userBonus', v_user_bonus,
     'ipShort', v_ip_short,
     'ipDay', v_ip_day,
     'serviceSketch', v_service_sketch,
@@ -429,19 +478,20 @@ begin
 end;
 $$;
 
--- 리워드 광고를 끝까지 본 기기에 오늘의 AI 검사 기회를 1회 더 줍니다.
---
--- 하루 1회로 막는 일이 이 함수의 존재 이유입니다. 클라이언트가 같은 요청을
--- 여러 번 보내도(중복 탭, 재시도, 조작) 'ad-reward' counter가 p_max_bonus에
--- 닿는 순간부터는 아무것도 증가시키지 않고 'already-granted'만 돌려줍니다.
--- consume 쪽과 같은 advisory lock을 잡기 때문에, 광고 보상과 검사 요청이
--- 동시에 들어와도 한도 계산이 갈라지지 않습니다.
-create or replace function public.grant_diary_ai_ad_reward(
+-- 충전식 사용자 기회를 적용하는 v2 RPC입니다. 기존 RPC를 남겨 먼저 SQL을
+-- 배포하고 나중에 Edge Function을 전환할 수 있게 합니다.
+create or replace function public.consume_diary_ai_inspection_quota_v2(
+  p_run_sketch boolean,
+  p_run_analyze boolean,
   p_user_hash text,
   p_ip_hash text,
   p_short_window_start timestamptz,
   p_day_window_start timestamptz,
-  p_max_bonus integer
+  p_user_credit_capacity integer,
+  p_ip_short_limit integer,
+  p_ip_daily_limit integer,
+  p_service_sketch_daily_limit integer,
+  p_service_analyze_daily_limit integer
 )
 returns jsonb
 language plpgsql
@@ -449,9 +499,119 @@ security definer
 set search_path = pg_catalog, public, private
 as $$
 declare
-  v_decision text;
-  v_user_all integer;
-  v_user_bonus integer;
+  v_decision text := 'allowed';
+  v_user_remaining integer;
+  v_ip_short integer;
+  v_ip_day integer;
+  v_service_sketch integer;
+  v_service_analyze integer;
+begin
+  if not coalesce(p_run_sketch, false)
+     and not coalesce(p_run_analyze, false) then
+    raise exception using errcode = '22023', message = 'at least one inspection action is required';
+  end if;
+
+  if not private.is_sha256_hex(p_user_hash)
+     or not private.is_sha256_hex(p_ip_hash) then
+    raise exception using errcode = '22023', message = 'invalid identifier hash';
+  end if;
+
+  if p_short_window_start is null or p_day_window_start is null
+     or p_day_window_start <> date_trunc('day', p_day_window_start, 'UTC')
+     or p_user_credit_capacity <> 2
+     or p_ip_short_limit < 1
+     or p_ip_daily_limit < 1
+     or p_service_sketch_daily_limit < 1
+     or p_service_analyze_daily_limit < 1 then
+    raise exception using errcode = '22023', message = 'invalid quota arguments';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('diary-ai-quota:' || p_day_window_start::text, 0)
+  );
+
+  v_user_remaining := private.refresh_diary_user_credit(
+    p_user_hash, p_day_window_start, p_user_credit_capacity
+  );
+  v_ip_short := private.read_diary_quota_counter(
+    'ip', p_ip_hash, 'all', 'short', p_short_window_start
+  );
+  v_ip_day := private.read_diary_quota_counter(
+    'ip', p_ip_hash, 'all', 'day', p_day_window_start
+  );
+  v_service_sketch := private.read_diary_quota_counter(
+    'service', 'global', 'sketch', 'day', p_day_window_start
+  );
+  v_service_analyze := private.read_diary_quota_counter(
+    'service', 'global', 'analyze', 'day', p_day_window_start
+  );
+
+  if v_user_remaining <= 0 then
+    v_decision := 'device-empty';
+  elsif v_ip_short >= p_ip_short_limit then
+    v_decision := 'ip-short';
+  elsif v_ip_day >= p_ip_daily_limit then
+    v_decision := 'ip-daily';
+  elsif (p_run_sketch and v_service_sketch >= p_service_sketch_daily_limit)
+     or (p_run_analyze and v_service_analyze >= p_service_analyze_daily_limit) then
+    v_decision := 'service-daily';
+  end if;
+
+  if v_decision = 'allowed' then
+    update public.diary_ai_user_credits
+    set balance = balance - 1,
+        updated_at = clock_timestamp()
+    where user_hash = p_user_hash
+    returning balance into v_user_remaining;
+
+    v_ip_short := private.increment_diary_quota_counter(
+      'ip', p_ip_hash, 'all', 'short', p_short_window_start
+    );
+    v_ip_day := private.increment_diary_quota_counter(
+      'ip', p_ip_hash, 'all', 'day', p_day_window_start
+    );
+
+    if p_run_sketch then
+      v_service_sketch := private.increment_diary_quota_counter(
+        'service', 'global', 'sketch', 'day', p_day_window_start
+      );
+    end if;
+
+    if p_run_analyze then
+      v_service_analyze := private.increment_diary_quota_counter(
+        'service', 'global', 'analyze', 'day', p_day_window_start
+      );
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'decision', v_decision,
+    'userRemaining', v_user_remaining,
+    'ipShort', v_ip_short,
+    'ipDay', v_ip_day,
+    'serviceSketch', v_service_sketch,
+    'serviceAnalyze', v_service_analyze
+  );
+end;
+$$;
+
+create or replace function public.refund_diary_ai_inspection_quota_v2(
+  p_run_sketch boolean,
+  p_run_analyze boolean,
+  p_user_hash text,
+  p_ip_hash text,
+  p_short_window_start timestamptz,
+  p_day_window_start timestamptz,
+  p_refill_slot timestamptz,
+  p_user_credit_capacity integer
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private
+as $$
+declare
+  v_user_remaining integer;
   v_ip_short integer;
   v_ip_day integer;
   v_service_sketch integer;
@@ -461,29 +621,118 @@ begin
      or not private.is_sha256_hex(p_ip_hash)
      or p_short_window_start is null
      or p_day_window_start is null
-     or p_max_bonus < 1 then
-    raise exception using errcode = '22023', message = 'invalid ad reward arguments';
+     or p_refill_slot is null
+     or p_refill_slot <> date_trunc('day', p_refill_slot, 'UTC')
+     or p_user_credit_capacity <> 2 then
+    raise exception using errcode = '22023', message = 'invalid refund arguments';
   end if;
 
   perform pg_advisory_xact_lock(
     hashtextextended('diary-ai-quota:' || p_day_window_start::text, 0)
   );
 
-  v_user_bonus := private.read_diary_quota_counter(
-    'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
+  v_user_remaining := private.refresh_diary_user_credit(
+    p_user_hash, p_refill_slot, p_user_credit_capacity
   );
+  update public.diary_ai_user_credits
+  set balance = least(p_user_credit_capacity, balance + 1),
+      updated_at = clock_timestamp()
+  where user_hash = p_user_hash
+  returning balance into v_user_remaining;
 
-  if v_user_bonus >= p_max_bonus then
-    v_decision := 'already-granted';
-  else
-    v_user_bonus := private.increment_diary_quota_counter(
-      'user', p_user_hash, 'ad-reward', 'day', p_day_window_start
-    );
-    v_decision := 'granted';
+  update public.diary_ai_rate_limits
+  set request_count = greatest(request_count - 1, 0),
+      updated_at = clock_timestamp()
+  where scope = 'ip'
+    and identifier_hash = p_ip_hash
+    and action = 'all'
+    and window_kind = 'short'
+    and window_start = p_short_window_start;
+
+  update public.diary_ai_rate_limits
+  set request_count = greatest(request_count - 1, 0),
+      updated_at = clock_timestamp()
+  where scope = 'ip'
+    and identifier_hash = p_ip_hash
+    and action = 'all'
+    and window_kind = 'day'
+    and window_start = p_day_window_start;
+
+  if coalesce(p_run_sketch, false) then
+    update public.diary_ai_rate_limits
+    set request_count = greatest(request_count - 1, 0),
+        updated_at = clock_timestamp()
+    where scope = 'service'
+      and identifier_hash = 'global'
+      and action = 'sketch'
+      and window_kind = 'day'
+      and window_start = p_day_window_start;
   end if;
 
-  v_user_all := private.read_diary_quota_counter(
-    'user', p_user_hash, 'all', 'day', p_day_window_start
+  if coalesce(p_run_analyze, false) then
+    update public.diary_ai_rate_limits
+    set request_count = greatest(request_count - 1, 0),
+        updated_at = clock_timestamp()
+    where scope = 'service'
+      and identifier_hash = 'global'
+      and action = 'analyze'
+      and window_kind = 'day'
+      and window_start = p_day_window_start;
+  end if;
+
+  v_ip_short := private.read_diary_quota_counter(
+    'ip', p_ip_hash, 'all', 'short', p_short_window_start
+  );
+  v_ip_day := private.read_diary_quota_counter(
+    'ip', p_ip_hash, 'all', 'day', p_day_window_start
+  );
+  v_service_sketch := private.read_diary_quota_counter(
+    'service', 'global', 'sketch', 'day', p_day_window_start
+  );
+  v_service_analyze := private.read_diary_quota_counter(
+    'service', 'global', 'analyze', 'day', p_day_window_start
+  );
+
+  return jsonb_build_object(
+    'userRemaining', v_user_remaining,
+    'ipShort', v_ip_short,
+    'ipDay', v_ip_day,
+    'serviceSketch', v_service_sketch,
+    'serviceAnalyze', v_service_analyze
+  );
+end;
+$$;
+
+create or replace function public.read_diary_ai_inspection_quota_v2(
+  p_user_hash text,
+  p_ip_hash text,
+  p_short_window_start timestamptz,
+  p_day_window_start timestamptz,
+  p_user_credit_capacity integer
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private
+as $$
+declare
+  v_user_remaining integer;
+  v_ip_short integer;
+  v_ip_day integer;
+  v_service_sketch integer;
+  v_service_analyze integer;
+begin
+  if not private.is_sha256_hex(p_user_hash)
+     or not private.is_sha256_hex(p_ip_hash)
+     or p_short_window_start is null
+     or p_day_window_start is null
+     or p_day_window_start <> date_trunc('day', p_day_window_start, 'UTC')
+     or p_user_credit_capacity <> 2 then
+    raise exception using errcode = '22023', message = 'invalid quota read arguments';
+  end if;
+
+  v_user_remaining := private.refresh_diary_user_credit(
+    p_user_hash, p_day_window_start, p_user_credit_capacity
   );
   v_ip_short := private.read_diary_quota_counter(
     'ip', p_ip_hash, 'all', 'short', p_short_window_start
@@ -499,9 +748,7 @@ begin
   );
 
   return jsonb_build_object(
-    'decision', v_decision,
-    'userAll', v_user_all,
-    'userBonus', v_user_bonus,
+    'userRemaining', v_user_remaining,
     'ipShort', v_ip_short,
     'ipDay', v_ip_day,
     'serviceSketch', v_service_sketch,
@@ -967,7 +1214,15 @@ revoke all on function public.refund_diary_ai_inspection_quota(
 revoke all on function public.read_diary_ai_inspection_quota(
   text, text, timestamptz, timestamptz
 ) from public, anon, authenticated;
-revoke all on function public.grant_diary_ai_ad_reward(
+revoke all on function public.consume_diary_ai_inspection_quota_v2(
+  boolean, boolean, text, text, timestamptz, timestamptz,
+  integer, integer, integer, integer, integer
+) from public, anon, authenticated;
+revoke all on function public.refund_diary_ai_inspection_quota_v2(
+  boolean, boolean, text, text, timestamptz, timestamptz,
+  timestamptz, integer
+) from public, anon, authenticated;
+revoke all on function public.read_diary_ai_inspection_quota_v2(
   text, text, timestamptz, timestamptz, integer
 ) from public, anon, authenticated;
 revoke all on function public.cleanup_diary_ai_rate_limits(timestamptz)
@@ -991,7 +1246,15 @@ grant execute on function public.refund_diary_ai_inspection_quota(
 grant execute on function public.read_diary_ai_inspection_quota(
   text, text, timestamptz, timestamptz
 ) to service_role;
-grant execute on function public.grant_diary_ai_ad_reward(
+grant execute on function public.consume_diary_ai_inspection_quota_v2(
+  boolean, boolean, text, text, timestamptz, timestamptz,
+  integer, integer, integer, integer, integer
+) to service_role;
+grant execute on function public.refund_diary_ai_inspection_quota_v2(
+  boolean, boolean, text, text, timestamptz, timestamptz,
+  timestamptz, integer
+) to service_role;
+grant execute on function public.read_diary_ai_inspection_quota_v2(
   text, text, timestamptz, timestamptz, integer
 ) to service_role;
 grant execute on function public.cleanup_diary_ai_rate_limits(timestamptz)
@@ -1008,9 +1271,9 @@ grant execute on function public.delete_diary_progress(text)
 commit;
 
 -- 설치 확인
--- select public.read_diary_ai_inspection_quota(
+-- select public.read_diary_ai_inspection_quota_v2(
 --   repeat('a', 64), repeat('b', 64),
---   date_trunc('hour', now()), date_trunc('day', now())
+--   date_trunc('hour', now()), date_trunc('day', now()), 2
 -- );
 -- select public.record_diary_app_visit(repeat('a', 64));
 -- select public.record_diary_completion(repeat('a', 64));

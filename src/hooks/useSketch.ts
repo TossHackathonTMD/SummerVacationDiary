@@ -26,7 +26,7 @@ import {
 } from "../services/styleTransfer";
 import type { DiaryDraft, DiaryDraftPatch } from "./useDiaryDraft";
 
-// Shown when the daily budget is already spent, so no request is ever made.
+// Shown when no user credit remains, so no request is ever made.
 const QUOTA_SPENT_MESSAGE = sketchCauseMessage("daily-limit-exceeded");
 
 export type SketchState =

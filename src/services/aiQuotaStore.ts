@@ -33,8 +33,8 @@ export interface QuotaRegion {
 
 export interface QuotaSnapshot {
   all: QuotaCounter;
-  /** ISO timestamp of the next daily reset (00:00 UTC = 09:00 KST). */
-  resetAt: string;
+  /** ISO timestamp of the next one-credit refill (00:00 UTC = 09:00 KST). */
+  nextRefillAt: string;
   blocked: QuotaBlockedReason | null;
   region: QuotaRegion;
   /** True only when the Edge Function's private test-mode Secret is enabled. */
@@ -54,7 +54,8 @@ const BLOCKED_REASONS: readonly string[] = [
   "service",
 ];
 
-const QUOTA_SNAPSHOT_STORAGE_KEY = "summer-vacation-diary:quota:v1";
+// v2 invalidates cached daily-reset snapshots when the refill policy ships.
+const QUOTA_SNAPSHOT_STORAGE_KEY = "summer-vacation-diary:quota:v2";
 
 function readStoredSnapshot(): QuotaSnapshot | null {
   try {
@@ -68,7 +69,7 @@ function readStoredSnapshot(): QuotaSnapshot | null {
     if (
       parsed === null ||
       parsed.testMode ||
-      Date.parse(parsed.resetAt) <= Date.now()
+      Date.parse(parsed.nextRefillAt) <= Date.now()
     ) {
       localStorage.removeItem(QUOTA_SNAPSHOT_STORAGE_KEY);
       return null;
@@ -152,9 +153,13 @@ export function parseQuotaSnapshot(body: unknown): QuotaSnapshot | null {
   if (all === null) {
     return null;
   }
+  // `resetAt` is accepted while an older Edge Function may still be deployed.
+  // Both contracts point at the next 09:00 KST boundary; only the semantics
+  // changed from full reset to one-credit refill.
+  const nextRefillAt = record.nextRefillAt ?? record.resetAt;
   if (
-    typeof record.resetAt !== "string" ||
-    Number.isNaN(Date.parse(record.resetAt))
+    typeof nextRefillAt !== "string" ||
+    Number.isNaN(Date.parse(nextRefillAt))
   ) {
     return null;
   }
@@ -166,7 +171,7 @@ export function parseQuotaSnapshot(body: unknown): QuotaSnapshot | null {
 
   return {
     all,
-    resetAt: record.resetAt,
+    nextRefillAt,
     blocked: blocked as QuotaBlockedReason | null,
     region: parseRegion(record.region),
     testMode: record.testMode === true,
@@ -200,9 +205,9 @@ export function getQuotaSnapshot(): QuotaSnapshot | null {
   return snapshot;
 }
 
-/** Drops the snapshot once its daily window has passed. */
+/** Drops the snapshot once its next refill boundary has passed. */
 export function expireQuotaSnapshot(now: number): void {
-  if (snapshot !== null && now >= Date.parse(snapshot.resetAt)) {
+  if (snapshot !== null && now >= Date.parse(snapshot.nextRefillAt)) {
     snapshot = null;
     try {
       localStorage.removeItem(QUOTA_SNAPSHOT_STORAGE_KEY);

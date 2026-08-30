@@ -13,11 +13,10 @@ const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
 };
 
-// Change limits here without touching the database function. One inspection
-// consumes one request from the device and shared IP budgets, while the
-// service-wide counters increase only for the operations actually requested. Daily
-// windows reset at 00:00 UTC, which is 09:00 KST — every user-facing message
-// must say "내일 아침 9시부터", never "내일".
+// One inspection consumes one user credit. A credit is restored at each
+// 00:00 UTC (09:00 KST) boundary up to the capacity, while IP and service cost
+// guards still use daily windows. The database applies refill and consumption
+// atomically; these values only configure its fixed limits.
 const USAGE_LIMITS = {
   // The burst window is IP-only. A device budget cannot stop a scripted caller
   // (x-diary-client-id is just a header on a public endpoint), so the short
@@ -25,12 +24,7 @@ const USAGE_LIMITS = {
   ipBurstWindowSeconds: 10 * 60,
   ipBurst: 20,
   ipDaily: 100,
-  // 무료로 주는 하루 기회. 리워드 광고를 끝까지 보면 여기에 adRewardBonus가
-  // 더해져 하루 최대 3회가 됩니다.
-  userDaily: 2,
-  // 광고로 늘릴 수 있는 하루 최대 횟수. 이 값이 곧 "광고는 하루 한 번만"이라는
-  // 규칙 자체이고, 실제 상한은 DB의 grant 함수가 잡습니다.
-  adRewardBonus: 1,
+  userCreditCapacity: 2,
   // Cost circuit breaker: the real ceiling on a day's spend. Split per action
   // so a flood of cheap analyses cannot starve the expensive sketch budget.
   serviceDaily: { sketch: 150, analyze: 250 },
@@ -215,7 +209,7 @@ interface QuotaRegion {
   country: string | null;
 }
 
-// What the client is allowed to see: its shared counter, when it resets, and
+// What the client is allowed to see: its shared counter, its next refill, and
 // one reason string when something shared is blocking. The raw service-wide
 // numbers stay server-side — publishing how much headroom is left would help
 // somebody time a burst against it. The caller's own country is not a secret
@@ -223,24 +217,18 @@ interface QuotaRegion {
 // region gate depends on exists at all.
 interface QuotaSnapshot {
   all: QuotaCounter;
+  nextRefillAt: string;
+  /** Temporary compatibility field for clients released before credit refill. */
   resetAt: string;
   blocked: null | "device" | "ip-burst" | "ip-daily" | "service";
   region: QuotaRegion;
   /** Lets the client hide quota UI while the server deliberately bypasses it. */
   testMode: boolean;
-  /**
-   * False once today's rewarded-ad bonus has been claimed. The client needs
-   * this to stop offering the ad — `all.limit` alone cannot say whether a limit
-   * of 3 means "bonus already added" or "bonus still available".
-   */
-  adRewardAvailable: boolean;
 }
 
 // Raw counters as the database returns them.
 interface QuotaCounts {
-  userAll: number;
-  /** Extra daily requests this device unlocked by watching a rewarded ad. */
-  userBonus: number;
+  userRemaining: number;
   ipShort: number;
   ipDay: number;
   serviceSketch: number;
@@ -253,9 +241,9 @@ interface Reservation {
   userHash: string;
   ipHash: string;
   // Kept from the consume call rather than recomputed when refunding: a request
-  // consumed at 23:59 UTC that fails at 00:01 must give its request back to
-  // yesterday's row — a harmless no-op, since that budget already reset —
-  // instead of handing out a free credit against today's.
+  // consumed at 23:59 UTC that fails at 00:01 must decrement the original IP
+  // and service rows. The user credit refund separately applies the new 09:00
+  // refill before returning the consumed credit.
   shortWindowStart: string;
   dayWindowStart: string;
   snapshot: QuotaSnapshot;
@@ -318,8 +306,7 @@ async function hashIdentifiers(
 }
 
 const COUNT_KEYS = [
-  "userAll",
-  "userBonus",
+  "userRemaining",
   "ipShort",
   "ipDay",
   "serviceSketch",
@@ -342,8 +329,13 @@ function parseCounts(data: unknown): QuotaCounts | null {
   return counts;
 }
 
-function counter(used: number, limit: number): QuotaCounter {
-  return { used, limit, remaining: Math.max(limit - used, 0) };
+function creditCounter(remaining: number, limit: number): QuotaCounter {
+  const safeRemaining = Math.min(Math.max(remaining, 0), limit);
+  return {
+    used: limit - safeRemaining,
+    limit,
+    remaining: safeRemaining,
+  };
 }
 
 // `decision` comes from consume and is authoritative for that request. A plain
@@ -355,7 +347,7 @@ function blockedReason(
   decision?: string,
 ): QuotaSnapshot["blocked"] {
   if (decision !== undefined && decision !== "allowed") {
-    if (decision === "device-daily") return "device";
+    if (decision === "device-empty") return "device";
     if (decision === "ip-short") return "ip-burst";
     if (decision === "ip-daily") return "ip-daily";
     if (decision === "service-daily") return "service";
@@ -380,15 +372,16 @@ function buildSnapshot(
   region: QuotaRegion,
   decision?: string,
 ): QuotaSnapshot {
+  const nextRefillAt = new Date(
+    Date.parse(dayWindowStart) + DAY_MS,
+  ).toISOString();
   return {
-    // The bonus raises this device's ceiling rather than discounting its usage,
-    // so "2/3" after an ad reads the same way "1/2" did before it.
-    all: counter(counts.userAll, USAGE_LIMITS.userDaily + counts.userBonus),
-    resetAt: new Date(Date.parse(dayWindowStart) + DAY_MS).toISOString(),
+    all: creditCounter(counts.userRemaining, USAGE_LIMITS.userCreditCapacity),
+    nextRefillAt,
+    resetAt: nextRefillAt,
     blocked: blockedReason(counts, decision),
     region,
     testMode: false,
-    adRewardAvailable: counts.userBonus < USAGE_LIMITS.adRewardBonus,
   };
 }
 
@@ -396,20 +389,21 @@ function buildSnapshot(
 function testModeSnapshot(request: Request): QuotaSnapshot {
   const { dayWindowStart } = windowStarts();
   const emptyCounter = { used: 0, limit: 0, remaining: 0 };
+  const nextRefillAt = new Date(
+    Date.parse(dayWindowStart) + DAY_MS,
+  ).toISOString();
   return {
     all: emptyCounter,
-    resetAt: new Date(Date.parse(dayWindowStart) + DAY_MS).toISOString(),
+    nextRefillAt,
+    resetAt: nextRefillAt,
     blocked: null,
     region: requestRegion(request),
     testMode: true,
-    // Test mode bypasses the counters entirely, so there is no exhausted state
-    // for an ad to relieve — offering one would be a button that does nothing.
-    adRewardAvailable: false,
   };
 }
 
 function rejectionCode(decision: string): string {
-  if (decision === "device-daily") return "daily-limit-exceeded";
+  if (decision === "device-empty") return "daily-limit-exceeded";
   if (decision === "ip-short") return "ip-burst-limit-exceeded";
   if (decision === "ip-daily") return "ip-daily-limit-exceeded";
   if (decision === "service-daily") return "service-daily-limit-exceeded";
@@ -433,7 +427,7 @@ async function reserveQuota(
   const region = requestRegion(request);
 
   const { data, error } = await adminClient().rpc(
-    "consume_diary_ai_inspection_quota",
+    "consume_diary_ai_inspection_quota_v2",
     {
       p_run_sketch: runSketch,
       p_run_analyze: runAnalyze,
@@ -441,7 +435,7 @@ async function reserveQuota(
       p_ip_hash: ipHash,
       p_short_window_start: shortWindowStart,
       p_day_window_start: dayWindowStart,
-      p_user_daily_limit: USAGE_LIMITS.userDaily,
+      p_user_credit_capacity: USAGE_LIMITS.userCreditCapacity,
       p_ip_short_limit: USAGE_LIMITS.ipBurst,
       p_ip_daily_limit: USAGE_LIMITS.ipDaily,
       p_service_sketch_daily_limit: USAGE_LIMITS.serviceDaily.sketch,
@@ -457,11 +451,11 @@ async function reserveQuota(
     throw new FunctionError("rate-limit-unavailable", 503);
   }
 
-  // All six counters on one line: when a user reports being blocked, which of
+  // All counters on one line: when a user reports being blocked, which of
   // the four budgets did it is the first thing worth knowing, and only the
   // device pair ever reaches the client.
   log.debug(
-    `quota inspect(${runSketch ? "sketch" : ""}${runSketch && runAnalyze ? "+" : ""}${runAnalyze ? "analyze" : ""}) ${decision} — device ${counts.userAll}, ip ${counts.ipShort}/${counts.ipDay}, service ${counts.serviceSketch}/${counts.serviceAnalyze}`,
+    `quota inspect(${runSketch ? "sketch" : ""}${runSketch && runAnalyze ? "+" : ""}${runAnalyze ? "analyze" : ""}) ${decision} — user remaining ${counts.userRemaining}, ip ${counts.ipShort}/${counts.ipDay}, service ${counts.serviceSketch}/${counts.serviceAnalyze}`,
   );
 
   if (decision !== "allowed") {
@@ -489,15 +483,16 @@ async function reserveQuota(
 /**
  * Gives a reserved request back. Never throws: this runs inside the error path,
  * and replacing the original failure with a refund failure would hide what
- * actually went wrong. A lost refund costs one request and heals at the reset.
+ * actually went wrong. A lost refund costs one credit until a later refill.
  */
 async function refundQuota(
   reservation: Reservation,
   log: RequestLog,
 ): Promise<QuotaSnapshot | null> {
   try {
+    const { dayWindowStart: refillSlot } = windowStarts();
     const { data, error } = await adminClient().rpc(
-      "refund_diary_ai_inspection_quota",
+      "refund_diary_ai_inspection_quota_v2",
       {
         p_run_sketch: reservation.runSketch,
         p_run_analyze: reservation.runAnalyze,
@@ -505,6 +500,8 @@ async function refundQuota(
         p_ip_hash: reservation.ipHash,
         p_short_window_start: reservation.shortWindowStart,
         p_day_window_start: reservation.dayWindowStart,
+        p_refill_slot: refillSlot,
+        p_user_credit_capacity: USAGE_LIMITS.userCreditCapacity,
       },
     );
     const counts = parseCounts(data);
@@ -515,11 +512,7 @@ async function refundQuota(
     // The region came from the same request that made the reservation, so it is
     // carried on the snapshot rather than re-derived from headers we no longer
     // have here.
-    return buildSnapshot(
-      counts,
-      reservation.dayWindowStart,
-      reservation.snapshot.region,
-    );
+    return buildSnapshot(counts, refillSlot, reservation.snapshot.region);
   } catch (cause) {
     log.error(
       `quota refund threw — ${cause instanceof Error ? cause.message : cause}`,
@@ -536,12 +529,13 @@ async function readQuota(
   const { shortWindowStart, dayWindowStart } = windowStarts();
 
   const { data, error } = await adminClient().rpc(
-    "read_diary_ai_inspection_quota",
+    "read_diary_ai_inspection_quota_v2",
     {
       p_user_hash: userHash,
       p_ip_hash: ipHash,
       p_short_window_start: shortWindowStart,
       p_day_window_start: dayWindowStart,
+      p_user_credit_capacity: USAGE_LIMITS.userCreditCapacity,
     },
   );
 
@@ -550,51 +544,6 @@ async function readQuota(
     log.error(`quota read failed — ${error?.message ?? "invalid result"}`);
     throw new FunctionError("rate-limit-unavailable", 503);
   }
-  return buildSnapshot(counts, dayWindowStart, requestRegion(request));
-}
-
-/**
- * Adds today's rewarded-ad bonus for this device.
- *
- * Deliberately idempotent rather than "once per call": the client can only tell
- * us an ad finished, and a dropped response, a double tap or a replayed request
- * would otherwise each buy another request. The database caps the counter at
- * `adRewardBonus`, so every call after the first is a no-op that still returns
- * the current numbers — which is exactly what the client needs to re-render.
- *
- * There is no server-side verification of the ad itself; the Toss rewarded-ad
- * API exposes no SSV callback, so a caller that never watched anything can
- * still claim the bonus. That is bounded on purpose: one extra request per
- * device per day, under the same IP and service ceilings as everything else.
- */
-async function grantAdReward(
-  request: Request,
-  log: RequestLog,
-): Promise<QuotaSnapshot> {
-  const { userHash, ipHash } = await hashIdentifiers(request);
-  const { shortWindowStart, dayWindowStart } = windowStarts();
-
-  const { data, error } = await adminClient().rpc("grant_diary_ai_ad_reward", {
-    p_user_hash: userHash,
-    p_ip_hash: ipHash,
-    p_short_window_start: shortWindowStart,
-    p_day_window_start: dayWindowStart,
-    p_max_bonus: USAGE_LIMITS.adRewardBonus,
-  });
-
-  const counts = parseCounts(data);
-  const decision = (data as { decision?: unknown } | null)?.decision;
-  if (error || counts === null || typeof decision !== "string") {
-    log.error(`ad reward failed — ${error?.message ?? "invalid result"}`);
-    throw new FunctionError("rate-limit-unavailable", 503);
-  }
-
-  log.debug(
-    `ad reward ${decision} — device ${counts.userAll}/${
-      USAGE_LIMITS.userDaily + counts.userBonus
-    }, bonus ${counts.userBonus}`,
-  );
-
   return buildSnapshot(counts, dayWindowStart, requestRegion(request));
 }
 
@@ -1056,10 +1005,7 @@ function containsUnsafeHighlight(value: string): boolean {
   return findUnsafeHighlightRanges(value).length > 0;
 }
 
-function overlapsUnsafeHighlight(
-  sentence: string,
-  content: string,
-): boolean {
+function overlapsUnsafeHighlight(sentence: string, content: string): boolean {
   const start = content.indexOf(sentence);
   if (start < 0) return true;
 
@@ -1073,10 +1019,7 @@ function getHighlightLength(value: string): number {
   return Array.from(value).length;
 }
 
-function isUsableHighlightSentence(
-  sentence: string,
-  content: string,
-): boolean {
+function isUsableHighlightSentence(sentence: string, content: string): boolean {
   const length = getHighlightLength(sentence);
 
   return (
@@ -1098,10 +1041,7 @@ function addHighlightCandidate(
   content: string,
 ): void {
   const trimmed = candidate.trim();
-  if (
-    !seen.has(trimmed) &&
-    isUsableHighlightSentence(trimmed, content)
-  ) {
+  if (!seen.has(trimmed) && isUsableHighlightSentence(trimmed, content)) {
     seen.add(trimmed);
     candidates.push(trimmed);
   }
@@ -1127,10 +1067,7 @@ function collectHighlightCandidates(content: string): string[] {
         const endIndex = tokens[end].index;
         if (startIndex === undefined || endIndex === undefined) continue;
 
-        const phrase = line.slice(
-          startIndex,
-          endIndex + tokens[end][0].length,
-        );
+        const phrase = line.slice(startIndex, endIndex + tokens[end][0].length);
         if (getHighlightLength(phrase.trim()) > MAX_HIGHLIGHT_SENTENCE_LENGTH) {
           break;
         }
@@ -1168,10 +1105,7 @@ function collectHighlightCandidates(content: string): string[] {
   return candidates;
 }
 
-function exactSafeHighlightAnchors(
-  value: unknown,
-  content: string,
-): string[] {
+function exactSafeHighlightAnchors(value: unknown, content: string): string[] {
   if (!Array.isArray(value)) return [];
 
   return value
@@ -1217,7 +1151,7 @@ function resolveHighlightSentence(
 
   // Prefer a safe phrase containing a model-selected highlight/star anchor.
   const anchored = candidates.find((candidate) =>
-    anchors.some((anchor) => candidate.includes(anchor))
+    anchors.some((anchor) => candidate.includes(anchor)),
   );
   if (anchored !== undefined) return anchored;
 
@@ -1226,15 +1160,8 @@ function resolveHighlightSentence(
   return candidates[0] ?? null;
 }
 
-function normalizeAnalysisResult(
-  result: unknown,
-  content: string,
-): unknown {
-  if (
-    typeof result !== "object" ||
-    result === null ||
-    Array.isArray(result)
-  ) {
+function normalizeAnalysisResult(result: unknown, content: string): unknown {
+  if (typeof result !== "object" || result === null || Array.isArray(result)) {
     return result;
   }
 
@@ -1402,22 +1329,7 @@ Deno.serve(async (request) => {
         requireString(request.headers.get("x-diary-client-id"), "client-id"),
       );
       const quota = await readQuota(request, log);
-      log.debug(
-        `quota-status ok — all ${quota.all.used}/${quota.all.limit}`,
-      );
-      return responseJson({ quota });
-    }
-    // Same placement rationale as quota-status: this only touches counters, so
-    // a missing OPENAI_API_KEY must not stop a user from banking their reward.
-    if (body?.action === "grant-ad-reward") {
-      if (QUOTA_TEST_MODE) {
-        log.info("grant-ad-reward ok — test mode (not counted)");
-        return responseJson({ quota: testModeSnapshot(request) });
-      }
-      enforceStatusLimit(
-        requireString(request.headers.get("x-diary-client-id"), "client-id"),
-      );
-      const quota = await grantAdReward(request, log);
+      log.debug(`quota-status ok — all ${quota.all.used}/${quota.all.limit}`);
       return responseJson({ quota });
     }
     if (isProgressAction(body?.action)) {
@@ -1449,12 +1361,8 @@ Deno.serve(async (request) => {
     // be a free way to probe it.
     const quota = QUOTA_TEST_MODE
       ? testModeSnapshot(request)
-      : (reservation = await reserveQuota(
-          request,
-          runSketch,
-          runAnalyze,
-          log,
-        )).snapshot;
+      : (reservation = await reserveQuota(request, runSketch, runAnalyze, log))
+          .snapshot;
     const [analysisResult, sketchResult] = await Promise.all([
       runAnalyze ? analyze(body.input, apiKey, log) : Promise.resolve(null),
       runSketch

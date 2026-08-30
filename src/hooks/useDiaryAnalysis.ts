@@ -15,8 +15,8 @@ export type AnalysisState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "success"; analysis: DiaryAnalysis }
-  // `retryable` is false once the daily budget is gone — pressing again before
-  // the reset cannot succeed, so the UI must not offer the button.
+  // `retryable` is false once no immediately usable credit remains, so the UI
+  // must not offer a button that can only fail again.
   | { status: "error"; message: string; retryable: boolean };
 
 // Internal state remembers which input produced it, so a result computed for
@@ -74,9 +74,9 @@ function toPublicState(
 /**
  * Runs the diary analysis on demand: `run()` is wired to the 검사 받기 button.
  *
- * It used to fire automatically whenever the preview opened, which cannot
- * survive a three-per-day bundled budget — editing one character changes the
- * input signature, so a few typo fixes would spend the whole day. Results are
+ * It used to fire automatically whenever the preview opened, which does not
+ * fit a scarce credit budget — editing one character changes the input
+ * signature, so a few typo fixes would spend every held credit. Results are
  * still cached by input signature and an in-flight request for the same input
  * is reused, so asking again without editing costs nothing.
  */

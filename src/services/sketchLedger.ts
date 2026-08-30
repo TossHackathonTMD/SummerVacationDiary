@@ -24,7 +24,7 @@
 type SketchTicketStatus = "pending" | "settled";
 
 // The keys are cropped photo data URLs, 150-400 KB each, and the ledger may be
-// their last remaining holder once the draft moves on. A daily budget of three
+// their last remaining holder once the draft moves on. A two-credit capacity
 // makes anything past a handful unreachable in practice.
 const MAX_TICKETS = 5;
 
@@ -52,7 +52,7 @@ function evictOldestSettled(): void {
       return;
     }
   }
-  // Everything is still in flight — unreachable with a three-a-day budget, and
+  // Everything is still in flight — unreachable with a two-credit capacity, and
   // keeping them all is the safe answer anyway: dropping a pending ticket would
   // hand back a count that is genuinely spent.
 }
@@ -149,14 +149,4 @@ export function subscribeSketchLedger(listener: () => void): () => void {
   return () => {
     listeners.delete(listener);
   };
-}
-
-/** Called at the daily reset, when yesterday's tickets stop meaning anything. */
-export function clearSketchLedger(): void {
-  if (tickets.size === 0) {
-    return;
-  }
-  tickets.clear();
-  pendingCount = 0;
-  emit();
 }

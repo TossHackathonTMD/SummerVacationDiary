@@ -44,9 +44,9 @@ export const SKETCH_ERROR_CAUSES: Record<SketchErrorCode, string> = {
   "content-blocked": "부적절한 이미지때문에",
   "invalid-image": "깨진 이미지때문에",
   "region-blocked": "해외 IP라서",
-  "ip-daily-limit-exceeded": "오늘 AI 검사 기회를 다 써서",
-  "service-daily-limit-exceeded": "오늘 AI 검사 기회를 다 써서",
-  "daily-limit-exceeded": "오늘 AI 검사 기회를 다 써서",
+  "ip-daily-limit-exceeded": "같은 인터넷의 이용 한도를 다 써서",
+  "service-daily-limit-exceeded": "오늘 준비한 AI 이용량을 다 써서",
+  "daily-limit-exceeded": "AI 검사 기회를 다 써서",
   // Everything transient reads the same way on purpose — the distinction
   // between a timeout, a busy model and a dead tunnel is ours to debug from the
   // logs, not the child's to interpret.
@@ -61,8 +61,8 @@ export const SKETCH_ERROR_CAUSES: Record<SketchErrorCode, string> = {
   "invalid-response": "알 수 없는 이유로",
 };
 
-// Retrying these cannot succeed: the budget is gone until the daily reset, the
-// photo will be rejected again, or our own billing is the problem.
+// Retrying these cannot succeed immediately: no user credit is available, a
+// daily safety window is exhausted, the photo is rejected, or billing failed.
 const NON_RETRYABLE_SKETCH_CODES: readonly SketchErrorCode[] = [
   "content-blocked",
   "invalid-image",

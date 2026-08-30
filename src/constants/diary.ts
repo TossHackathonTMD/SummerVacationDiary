@@ -52,10 +52,14 @@ export function formatKoreanDate(date: string): string {
 export const TITLE_MAX_LENGTH = 15;
 export const AI_CONTENT_WATERMARK = "AI 생성 콘텐츠";
 
-// Daily AI budgets reset at 00:00 UTC, which is 09:00 KST — so "내일" alone
-// would be a lie for anyone who runs out in the evening and comes back before
-// breakfast. One constant so every screen and error message agrees.
-export const QUOTA_RESET_NOTICE = "내일 아침 9시에 기회가 다시 생겨요.";
+// User credits refill one at a time, while IP/service cost guards still reset
+// their daily windows. Keep their wording separate so neither promises the
+// wrong recovery behavior.
+export const AI_CREDIT_REFILL_NOTICE = "다음 기회는 아침 9시에 1개 충전돼요.";
+export const AI_CREDIT_POLICY_NOTICE =
+  "매일 아침 9시에 1개가 충전돼요. 최대 2개까지 보관할 수 있어요.";
+export const DAILY_LIMIT_RESET_NOTICE =
+  "내일 아침 9시부터 다시 이용할 수 있어요.";
 
 // The writing date is always today. Keep the capacity dialog copy shared by
 // the early writing-step check and the final save guard so an old

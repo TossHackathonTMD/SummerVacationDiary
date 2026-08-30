@@ -1,4 +1,7 @@
-import { QUOTA_RESET_NOTICE } from "../constants/diary";
+import {
+  AI_CREDIT_REFILL_NOTICE,
+  DAILY_LIMIT_RESET_NOTICE,
+} from "../constants/diary";
 import { containsProfanity } from "../utils/profanity";
 import {
   requestInspectionAnalysis,
@@ -65,16 +68,15 @@ export const ANALYSIS_ERROR_MESSAGES: Record<AnalysisErrorCode, string> = {
   "region-blocked": "해외에서는 선생님이 일기를 검사해 줄 수 없어요.",
   "ip-burst-limit-exceeded":
     "잠깐 사이에 요청이 너무 많았어요. 잠시 후 다시 시도해 주세요.",
-  "ip-daily-limit-exceeded": `같은 인터넷에서 오늘 이용할 수 있는 횟수를 모두 사용했어요.\n${QUOTA_RESET_NOTICE}`,
-  "service-daily-limit-exceeded": `오늘은 많은 친구들이 이용했어요.\n${QUOTA_RESET_NOTICE}`,
-  "daily-limit-exceeded": `오늘 사용할 수 있는 횟수를 모두 사용했어요.\n${QUOTA_RESET_NOTICE}`,
+  "ip-daily-limit-exceeded": `같은 인터넷에서 오늘 이용할 수 있는 횟수를 모두 사용했어요.\n${DAILY_LIMIT_RESET_NOTICE}`,
+  "service-daily-limit-exceeded": `오늘은 많은 친구들이 이용했어요.\n${DAILY_LIMIT_RESET_NOTICE}`,
+  "daily-limit-exceeded": `AI 검사 기회를 모두 사용했어요.\n${AI_CREDIT_REFILL_NOTICE}`,
   "api-error": "분석 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.",
   "invalid-response": "분석 결과를 읽지 못했어요. 다시 시도해 주세요.",
 };
 
-// Retrying these can never succeed from here: the budget is gone until the
-// daily reset, or the caller's country is refused outright. The UI must not
-// offer a retry button for them.
+// Retrying these can never succeed immediately: the user's next credit has not
+// arrived, a daily safety window is exhausted, or the country is refused.
 const NON_RETRYABLE_ANALYSIS_CODES: readonly AnalysisErrorCode[] = [
   "region-blocked",
   "ip-daily-limit-exceeded",
