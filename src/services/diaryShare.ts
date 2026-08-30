@@ -4,9 +4,9 @@ import {
   share as shareThroughToss,
 } from "@apps-in-toss/web-framework";
 
+import { seasonCopy, type SeasonTheme } from "../constants/seasonTheme";
+
 const APP_DEEP_LINK = "intoss://summer-vacation-diary";
-const SHARE_TITLE = "나의 여름방학 일기";
-const SHARE_TEXT = "사진 한 장으로 나만의 여름방학 그림일기를 만들어 보세요!";
 
 export class DiaryShareError extends Error {
   constructor(public readonly userMessage: string) {
@@ -85,9 +85,10 @@ function isShareCancelled(error: unknown): boolean {
  * 성공 및 취소 시에는 별도의 결과를 반환하지 않습니다.
  * 공유 기능 실행 자체가 실패한 경우에만 예외를 발생시킵니다.
  */
-export async function shareDiaryAppLink(): Promise<void> {
+export async function shareDiaryAppLink(theme: SeasonTheme): Promise<void> {
   const link = await getDiaryAppShareLink();
-  const message = `${SHARE_TEXT}\n${link}`;
+  const { shareTitle, shareText } = seasonCopy(theme);
+  const message = `${shareText}\n${link}`;
 
   try {
     if (isInsideTossApp()) {
@@ -97,8 +98,8 @@ export async function shareDiaryAppLink(): Promise<void> {
 
     if (navigator.share !== undefined) {
       await navigator.share({
-        title: SHARE_TITLE,
-        text: SHARE_TEXT,
+        title: shareTitle,
+        text: shareText,
         url: link,
       });
       return;

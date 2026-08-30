@@ -31,6 +31,7 @@ export interface PhotoSelection {
 
 interface PhotoUploadStepProps {
   photoDataUrl: string | null;
+  selectButtonLabel: string;
   onPhotoChange: (selection: PhotoSelection) => void;
   /** Handles the root upload screen's native navigation-bar back action. */
   onRequestExit: () => Promise<void>;
@@ -51,6 +52,7 @@ interface PhotoUploadStepProps {
  */
 export function PhotoUploadStep({
   photoDataUrl,
+  selectButtonLabel,
   onPhotoChange,
   onRequestExit,
   hasSessionConsent,
@@ -298,7 +300,7 @@ export function PhotoUploadStep({
             disabled={processing}
             onClick={requestPhotoSelection}
           >
-            여름 사진을 선택하세요
+            {selectButtonLabel}
           </DiaryButton>
         </div>
       )}

@@ -1,0 +1,560 @@
+:root {
+  --winter-sky: #b9ddf4;
+  --winter-sky-light: #e7f3fa;
+  --winter-snow: #f7fbff;
+  --winter-snow-shadow: #d6eaf5;
+  --winter-paper: #fffdf4;
+  --winter-paper-line: rgba(76, 132, 161, 0.22);
+  --winter-primary: #4d9dca;
+  --winter-primary-dark: #2f719d;
+  --winter-secondary: #4f8a78;
+  --winter-accent: #f4d98b;
+  --winter-ink: #376f8b;
+}
+
+html[data-season-theme="winter"] {
+  --summer-page-background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 31px,
+      rgba(76, 132, 161, 0.09) 32px,
+      transparent 33px
+    ),
+    linear-gradient(180deg, #dceef8 0, #eef7fb 58%, #f7fbff 100%);
+}
+
+.season-theme-unlock {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.season-theme-unlock:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid currentcolor;
+  outline-offset: 2px;
+}
+
+.season-theme-reset {
+  position: absolute;
+  z-index: 12;
+  top: calc(10px + var(--app-safe-top));
+  right: max(12px, calc(8px + var(--app-safe-right)));
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid rgba(47, 113, 157, 0.34);
+  border-radius: 13px 10px 12px 11px;
+  appearance: none;
+  background: rgba(255, 253, 244, 0.9);
+  box-shadow: 0 3px 10px rgba(52, 106, 137, 0.12);
+  color: #376f8b;
+  font-family: "NanumCoDingHeuiMang", sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.season-theme-reset:active {
+  transform: translateY(1px);
+}
+
+.season-theme-reset:focus-visible {
+  outline: 3px solid rgba(77, 157, 202, 0.32);
+  outline-offset: 2px;
+}
+
+/* Winter onboarding is isolated from the existing summer scene so neither
+   season needs to duplicate app behavior or override the other's asset grid. */
+.winter-onboarding,
+.winter-onboarding * {
+  box-sizing: border-box;
+}
+
+.winter-onboarding {
+  --winter-content-bottom: calc(112px + var(--app-safe-bottom));
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--winter-sky);
+  isolation: isolate;
+}
+
+.winter-onboarding-scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background-color: var(--winter-sky);
+  background-image:
+    url("/winter-theme/background.png"),
+    linear-gradient(
+      to bottom,
+      var(--winter-sky) 0%,
+      #dceef8 45%,
+      #c4e6f2 46%,
+      #e8f5fa 58%,
+      var(--winter-snow) 59%,
+      #eef7fb 100%
+    );
+  background-position: center;
+  background-size: cover;
+}
+
+.winter-onboarding-decoration,
+.winter-onboarding-flight-team {
+  position: absolute;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  will-change: transform;
+}
+
+.winter-onboarding-decoration {
+  z-index: 1;
+}
+
+.winter-onboarding-snowflake-large {
+  top: 4%;
+  right: 6%;
+  width: 18%;
+  opacity: 0.76;
+  animation: winter-snowflake-drift 8s ease-in-out -2s infinite;
+}
+
+.winter-onboarding-cloud-big {
+  top: 4%;
+  left: 1%;
+  width: 28%;
+  animation: winter-cloud-right 12s ease-in-out -4s infinite;
+}
+
+.winter-onboarding-cloud-small {
+  top: 29%;
+  right: 5%;
+  width: 15%;
+  animation: winter-cloud-left 9.5s ease-in-out -7s infinite;
+}
+
+.winter-onboarding-snowflake-one {
+  top: 19%;
+  left: 10%;
+  width: 7%;
+  opacity: 0.62;
+  animation: winter-snowfall-one 7s ease-in-out -3s infinite;
+}
+
+.winter-onboarding-snowflake-two {
+  top: 25%;
+  right: 19%;
+  width: 5.5%;
+  opacity: 0.58;
+  animation: winter-snowfall-two 8s ease-in-out -5s infinite;
+}
+
+.winter-onboarding-flight-team {
+  z-index: 4;
+  top: 29.5%;
+  left: 2%;
+  width: 46%;
+  animation: winter-sleigh-flight 7.2s ease-in-out -2.5s infinite;
+}
+
+.winter-onboarding-title {
+  position: absolute;
+  z-index: 8;
+  top: 10%;
+  left: 50%;
+  display: grid;
+  width: min(60%, 282px);
+  margin: 0;
+  transform: translateX(-50%);
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows:
+    clamp(38px, 5.5vh, 52px)
+    clamp(57px, 8.2vh, 75px)
+    clamp(38px, 5.5vh, 52px);
+  align-items: center;
+  justify-items: center;
+  color: var(--winter-ink);
+  font-family:
+    "NanumDdarEGeEomMaGa", "NanumCoDingHeuiMang", system-ui, sans-serif;
+  line-height: 0.92;
+  text-align: center;
+  text-shadow: 0 5px 0 rgba(62, 128, 158, 0.16);
+  pointer-events: none;
+}
+
+.winter-onboarding-title-character {
+  display: inline-block;
+  font-size: clamp(38px, 8.5vw, 55px);
+  font-synthesis: weight;
+  font-weight: 700;
+  -webkit-text-stroke: clamp(3.5px, 1.05vw, 5px) #fff;
+  paint-order: stroke fill;
+  filter: saturate(1.08) drop-shadow(0 2px 0 rgba(65, 111, 137, 0.12));
+  animation: winter-title-character 4.4s ease-in-out infinite alternate;
+}
+
+.winter-onboarding-title-na {
+  grid-area: 1 / 2;
+  justify-self: end;
+  margin-right: clamp(9px, 3vw, 13px);
+  color: #ed7793;
+}
+
+.winter-onboarding-title-ui {
+  grid-area: 1 / 3;
+  justify-self: start;
+  margin-left: clamp(9px, 3vw, 13px);
+  color: #e7a72e;
+  animation-delay: -2.1s;
+}
+
+.winter-onboarding-title-gyeo,
+.winter-onboarding-title-ul,
+.winter-onboarding-title-bang,
+.winter-onboarding-title-hak {
+  position: relative;
+  font-size: clamp(58px, 13vw, 82px);
+  letter-spacing: -0.08em;
+}
+
+.winter-onboarding-title-gyeo {
+  left: clamp(12px, 6vw, 24px);
+  grid-area: 2 / 1;
+  color: #4c9dbc;
+  animation-delay: -1.6s;
+}
+
+.winter-onboarding-title-ul {
+  left: clamp(4px, 2vw, 8px);
+  grid-area: 2 / 2;
+  color: #4e9a73;
+  animation-delay: -0.9s;
+}
+
+.winter-onboarding-title-bang {
+  left: clamp(-8px, -2vw, -4px);
+  grid-area: 2 / 3;
+  color: #8b72bb;
+  animation-delay: -3.2s;
+}
+
+.winter-onboarding-title-hak {
+  left: clamp(-24px, -6vw, -12px);
+  grid-area: 2 / 4;
+  color: #df615b;
+  animation-delay: -2.4s;
+}
+
+.winter-onboarding-title-il {
+  grid-area: 3 / 2;
+  justify-self: end;
+  margin-right: clamp(9px, 3vw, 13px);
+  color: #9a683f;
+  animation-delay: -1.3s;
+}
+
+.winter-onboarding-title-gi {
+  grid-area: 3 / 3;
+  justify-self: start;
+  margin-left: clamp(9px, 3vw, 13px);
+  color: #3f76ad;
+  animation-delay: -2.7s;
+}
+
+.winter-onboarding-sled {
+  z-index: 5;
+  bottom: calc(var(--winter-content-bottom) + 5px);
+  left: 2%;
+  width: 19%;
+}
+
+.winter-onboarding-snowman {
+  z-index: 3;
+  right: 4%;
+  bottom: calc(var(--winter-content-bottom) + 138px);
+  width: 15%;
+}
+
+.winter-onboarding-pine-tree {
+  z-index: 3;
+  bottom: calc(var(--winter-content-bottom) + 148px);
+  left: 4%;
+  width: 17%;
+}
+
+.winter-onboarding-girl {
+  z-index: 6;
+  bottom: calc(var(--winter-content-bottom) + 4px);
+  left: 50%;
+  width: min(51%, 234px);
+  margin-left: calc(-1 * min(25.5%, 117px));
+  animation: winter-girl 4.8s ease-in-out -1.5s infinite;
+}
+
+.winter-onboarding-snow-fort {
+  z-index: 4;
+  bottom: calc(var(--winter-content-bottom) + 103px);
+  left: 9%;
+  width: 14%;
+}
+
+.winter-onboarding-mittens {
+  z-index: 5;
+  right: 21%;
+  bottom: calc(var(--winter-content-bottom) + 18px);
+  width: 8.5%;
+}
+
+.winter-onboarding-penguin {
+  z-index: 5;
+  right: 3%;
+  bottom: calc(var(--winter-content-bottom) + 10px);
+  width: 12%;
+}
+
+.winter-onboarding-action-area {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 72px clamp(16px, 5vw, 24px) calc(20px + var(--app-safe-bottom));
+  background: linear-gradient(
+    to bottom,
+    rgba(247, 251, 255, 0),
+    rgba(224, 240, 248, 0.3) 42%,
+    rgba(214, 234, 245, 0.78) 100%
+  );
+  pointer-events: none;
+}
+
+/* App pages retain their existing components. Only the surface tokens and
+   seasonal decoration change while weather and day/night classes keep working. */
+.app-shell.theme-winter {
+  --summer-sky: var(--winter-sky);
+  --summer-sky-light: var(--winter-sky-light);
+  --summer-paper: var(--winter-paper);
+  --summer-paper-line: var(--winter-paper-line);
+  --summer-coral: var(--winter-primary);
+  --summer-coral-dark: var(--winter-primary-dark);
+  --summer-sea: #568eab;
+  --summer-sun: var(--winter-accent);
+
+  background: linear-gradient(
+    180deg,
+    #e7f3fa 0,
+    var(--winter-sky) 70px,
+    #c4e6f2 196px,
+    var(--winter-snow-shadow) 225px,
+    var(--winter-paper) 305px,
+    #f7fbff 100%
+  );
+}
+
+.app-shell.theme-winter.time-night {
+  background: linear-gradient(
+    180deg,
+    #1f466b 0,
+    #315f85 80px,
+    #5785a4 196px,
+    #b9d7e6 225px,
+    var(--winter-paper) 305px,
+    #f7fbff 100%
+  );
+}
+
+.theme-winter .summer-sky-accent::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.42;
+  background-image:
+    url("/winter-theme/snowflake.png"), url("/winter-theme/snowflake.png");
+  background-repeat: no-repeat;
+  background-position:
+    8% 22%,
+    77% 68%;
+  background-size:
+    38px 38px,
+    24px 24px;
+  pointer-events: none;
+  animation: winter-snowfall-one 8s ease-in-out infinite alternate;
+}
+
+html[data-season-theme="winter"] .summer-diary-button-primary {
+  border-color: var(--winter-primary-dark) !important;
+  background:
+    repeating-linear-gradient(
+      -7deg,
+      transparent 0 9px,
+      rgba(38, 101, 142, 0.07) 9px 10px
+    ),
+    linear-gradient(135deg, #68afd2 0%, var(--winter-primary) 100%) !important;
+  box-shadow:
+    1px 3px 0 rgba(39, 105, 145, 0.28),
+    0 7px 14px rgba(57, 125, 163, 0.16) !important;
+  color: #fff !important;
+}
+
+html[data-season-theme="winter"] .summer-diary-button-secondary {
+  border-color: #9fc4d7 !important;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 11px,
+      rgba(76, 132, 161, 0.1) 11px 12px
+    ),
+    #fffdf4 !important;
+  color: #3f7691 !important;
+}
+
+.theme-winter :is(.ai-quota-counter, .daily-status-plain) {
+  border-color: rgba(77, 157, 202, 0.38);
+  background: linear-gradient(135deg, #fffdf4 0%, #eaf5fa 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.62),
+    0 5px 12px rgba(50, 111, 145, 0.09);
+}
+
+.theme-winter :is(.ai-quota-counter-kicker, .ai-quota-counter-value) {
+  color: var(--winter-primary-dark);
+}
+
+.theme-winter .ai-quota-meter > .is-remaining {
+  background: linear-gradient(90deg, #91c7df 0%, var(--winter-primary) 100%);
+}
+
+.theme-winter .rewarded-ad-callout,
+.theme-winter .preview-save-notice,
+.theme-winter .summer-step-progress {
+  border-color: rgba(77, 157, 202, 0.28);
+  background-color: rgba(255, 253, 244, 0.88);
+}
+
+.theme-winter .diary-calendar-paper {
+  border-color: rgba(91, 151, 181, 0.35);
+  background-color: var(--winter-paper);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.62),
+    0 12px 28px rgba(51, 104, 135, 0.12);
+}
+
+.theme-winter .diary-calendar-count,
+.theme-winter .diary-calendar-month-picker h2 {
+  color: var(--winter-primary-dark);
+}
+
+@keyframes winter-snowflake-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-7deg) scale(0.96);
+  }
+  50% {
+    transform: translate3d(-4px, 8px, 0) rotate(9deg) scale(1.035);
+  }
+}
+
+@keyframes winter-cloud-right {
+  0%,
+  100% {
+    transform: translate3d(-7px, 0, 0);
+  }
+  50% {
+    transform: translate3d(11px, 5px, 0);
+  }
+}
+
+@keyframes winter-cloud-left {
+  0%,
+  100% {
+    transform: translate3d(7px, 0, 0);
+  }
+  50% {
+    transform: translate3d(-10px, 4px, 0);
+  }
+}
+
+@keyframes winter-snowfall-one {
+  0%,
+  100% {
+    transform: translate3d(-5px, -3px, 0) rotate(-8deg);
+  }
+  50% {
+    transform: translate3d(8px, 12px, 0) rotate(8deg);
+  }
+}
+
+@keyframes winter-snowfall-two {
+  0%,
+  100% {
+    transform: translate3d(5px, -4px, 0) rotate(7deg) scale(0.94);
+  }
+  50% {
+    transform: translate3d(-8px, 14px, 0) rotate(-9deg) scale(1.05);
+  }
+}
+
+@keyframes winter-sleigh-flight {
+  0%,
+  100% {
+    transform: translate3d(-5px, 4px, 0) rotate(-1deg);
+  }
+  50% {
+    transform: translate3d(9px, -7px, 0) rotate(1.2deg);
+  }
+}
+
+@keyframes winter-title-character {
+  0%,
+  100% {
+    transform: translate3d(0, 1px, 0) rotate(-0.6deg);
+  }
+  50% {
+    transform: translate3d(0, -3px, 0) rotate(0.8deg);
+  }
+}
+
+@keyframes winter-girl {
+  0%,
+  100% {
+    transform: translate3d(0, 1px, 0) rotate(-0.5deg) scale(0.99);
+  }
+  50% {
+    transform: translate3d(0, -5px, 0) rotate(0.8deg) scale(1.015);
+  }
+}
+
+@media (max-width: 359px) {
+  .season-theme-reset {
+    max-width: 92px;
+    padding-inline: 7px;
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .winter-onboarding-decoration,
+  .winter-onboarding-flight-team,
+  .winter-onboarding-title-character,
+  .theme-winter .summer-sky-accent::after {
+    animation: none;
+  }
+}
