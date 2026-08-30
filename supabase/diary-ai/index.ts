@@ -1248,12 +1248,12 @@ async function sketch(
   log: RequestLog,
 ): Promise<unknown> {
   const photo = requireString(photoDataUrl, "image");
-  const quality = Deno.env.get("OPENAI_IMAGE_QUALITY") || "medium";
+  const quality = Deno.env.get("OPENAI_IMAGE_QUALITY") || "low";
   if (!["low", "medium", "high"].includes(quality)) {
     throw new FunctionError("invalid-image-quality", 500);
   }
 
-  const model = Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-1";
+  const model = Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-2";
   log.debug(
     `sketch → ${model} quality=${quality}, photo ${Math.round(photo.length / 1365)}KB`,
   );
