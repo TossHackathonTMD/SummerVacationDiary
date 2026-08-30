@@ -19,6 +19,7 @@ import { AiQuotaNotice, AiRecheckNotice } from "./components/AiQuotaNotice";
 import { BannerAd } from "./components/BannerAd";
 import { DiaryButton } from "./components/DiaryButton";
 import { PhotoUploadStep } from "./components/PhotoUploadStep";
+import { RewardedAdCallout } from "./components/RewardedAdCallout";
 import { StreakMilestoneModal } from "./components/StreakMilestoneModal";
 import {
   TODAY_DIARY_FULL_TITLE,
@@ -1096,6 +1097,7 @@ function App() {
       {step === "upload" && (
         <>
           <AiQuotaNotice progress={diaryProgress} />
+          <RewardedAdCallout />
           <PhotoUploadStep
             photoDataUrl={draft.photoDataUrl}
             onRequestExit={requestAppExit}
