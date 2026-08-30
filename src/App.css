@@ -4910,6 +4910,265 @@ html:has(
   transform: rotate(0.2deg);
 }
 
+/* A small team note signs off the calendar without competing with its content. */
+.developer-credits-entry {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  max-width: 470px;
+  box-sizing: border-box;
+  margin: 5px auto 0;
+  padding-right: 6px;
+}
+
+.developer-credits-trigger {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 7px 9px;
+  border: 1px solid rgba(91, 78, 62, 0.28);
+  border-radius: 7px 10px 6px 9px;
+  appearance: none;
+  background:
+    repeating-linear-gradient(
+      -7deg,
+      transparent 0 8px,
+      rgba(85, 137, 161, 0.07) 8px 9px
+    ),
+    #fffdf4;
+  box-shadow:
+    1px 2px 0 rgba(91, 78, 62, 0.14),
+    0 5px 10px rgba(69, 54, 35, 0.07);
+  color: #586f78;
+  font-family: "NanumCoDingHeuiMang", sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.1;
+  transform: rotate(0.7deg);
+  cursor: pointer;
+}
+
+.developer-credits-trigger > svg {
+  width: 25px;
+  height: 20px;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.65;
+  transform: rotate(-2deg);
+}
+
+.developer-credits-team-icon-smile {
+  stroke-width: 1.15;
+}
+
+.developer-credits-trigger:active {
+  box-shadow: 0 1px 0 rgba(91, 78, 62, 0.12);
+  transform: translateY(1px) rotate(0.2deg) scale(0.98);
+}
+
+.developer-credits-trigger:focus-visible {
+  outline: 3px dashed rgba(45, 117, 160, 0.48);
+  outline-offset: 3px;
+}
+
+.developer-credits-modal {
+  height: auto !important;
+  max-height: min(
+    700px,
+    calc(100dvh - 24px - var(--app-safe-top) - var(--app-safe-bottom))
+  ) !important;
+  border: 2px solid rgba(91, 78, 62, 0.34);
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 31px,
+      rgba(83, 153, 183, 0.08) 32px,
+      transparent 33px
+    ),
+    #fffdf6;
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.68),
+    0 18px 48px rgba(55, 45, 34, 0.22);
+}
+
+.developer-credits-layout {
+  font-family: "NanumCoDingHeuiMang", sans-serif;
+}
+
+.developer-credits-header {
+  flex: 0 0 auto;
+  padding: 22px var(--app-modal-bezel) 15px;
+  border-bottom: 2px dashed rgba(91, 78, 62, 0.2);
+}
+
+.developer-credits-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--summer-coral-dark);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+}
+
+.developer-credits-header .app-modal-title {
+  color: #302b28;
+  font-family: "NanumDdarEGeEomMaGa", sans-serif;
+  font-size: 27px;
+  font-weight: 400;
+  text-shadow: 0.6px 0 #302b28;
+}
+
+.developer-credits-header p {
+  margin: 7px 0 0;
+  color: #6b625b;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.developer-credits-list {
+  min-height: 0;
+  margin: 0;
+  padding: 8px var(--app-modal-bezel) 10px;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.developer-credits-list li + li {
+  border-top: 1px dashed rgba(91, 78, 62, 0.2);
+}
+
+.developer-credit-member {
+  display: grid;
+  width: 100%;
+  min-height: 58px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 5px;
+  border: 0;
+  appearance: none;
+  background: transparent;
+  color: #302b28;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.developer-credit-member:active {
+  background: rgba(77, 157, 202, 0.08);
+}
+
+.developer-credit-member:focus-visible {
+  border-radius: 8px;
+  outline: 3px dashed rgba(45, 117, 160, 0.48);
+  outline-offset: -2px;
+}
+
+.developer-credit-member-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.developer-credit-name-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 54px auto;
+  align-items: center;
+  justify-content: start;
+  gap: 8px;
+}
+
+.developer-credit-name-row strong {
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.developer-credit-badge {
+  padding: 3px 6px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-family: system-ui, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.developer-credit-badge.is-lead {
+  border-color: rgba(74, 127, 120, 0.4);
+  background: rgba(126, 181, 169, 0.22);
+  color: #527873;
+}
+
+.developer-credit-badge.is-crew {
+  border-color: rgba(74, 127, 120, 0.3);
+  background: rgba(126, 181, 169, 0.13);
+  color: #527873;
+}
+
+.developer-credit-github {
+  overflow: hidden;
+  color: #7b7169;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.developer-credit-link-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #586f78;
+  font-size: 14px;
+}
+
+.developer-credit-link-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.developer-credits-footer {
+  padding: 12px var(--app-modal-bezel) var(--app-modal-bezel);
+}
+
+.theme-winter .developer-credits-trigger {
+  border-color: rgba(47, 113, 157, 0.3);
+  background:
+    repeating-linear-gradient(
+      -7deg,
+      transparent 0 8px,
+      rgba(76, 132, 161, 0.08) 8px 9px
+    ),
+    var(--winter-paper);
+  color: var(--winter-primary-dark);
+}
+
+.theme-winter .developer-credit-badge.is-lead {
+  border-color: rgba(47, 113, 157, 0.34);
+  background: rgba(77, 157, 202, 0.15);
+  color: var(--winter-primary-dark);
+}
+
+.theme-winter .developer-credit-badge.is-crew {
+  border-color: rgba(47, 113, 157, 0.24);
+  background: rgba(77, 157, 202, 0.09);
+  color: var(--winter-primary-dark);
+}
+
 .diary-calendar-month-picker {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;

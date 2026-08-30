@@ -58,8 +58,11 @@ html[data-season-theme="winter"] {
   color: #376f8b;
   font-family: "NanumCoDingHeuiMang", sans-serif;
   font-size: 12px;
-  font-weight: 800;
+  font-synthesis: weight;
+  font-weight: 900;
   line-height: 1.2;
+  -webkit-text-stroke: 0.3px currentcolor;
+  paint-order: stroke fill;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -179,45 +182,34 @@ html[data-season-theme="winter"] {
   width: min(60%, 282px);
   margin: 0;
   transform: translateX(-50%);
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-rows:
     clamp(38px, 5.5vh, 52px)
     clamp(57px, 8.2vh, 75px)
     clamp(38px, 5.5vh, 52px);
   align-items: center;
   justify-items: center;
-  color: var(--winter-ink);
-  font-family:
-    "NanumDdarEGeEomMaGa", "NanumCoDingHeuiMang", system-ui, sans-serif;
-  line-height: 0.92;
-  text-align: center;
-  text-shadow: 0 5px 0 rgba(62, 128, 158, 0.16);
   pointer-events: none;
 }
 
 .winter-onboarding-title-character {
-  display: inline-block;
-  font-size: clamp(38px, 8.5vw, 55px);
-  font-synthesis: weight;
-  font-weight: 700;
-  -webkit-text-stroke: clamp(3.5px, 1.05vw, 5px) #fff;
-  paint-order: stroke fill;
-  filter: saturate(1.08) drop-shadow(0 2px 0 rgba(65, 111, 137, 0.12));
+  position: relative;
+  display: block;
+  width: clamp(62px, 14vw, 88px);
+  height: auto;
   animation: winter-title-character 4.4s ease-in-out infinite alternate;
 }
 
 .winter-onboarding-title-na {
+  left: clamp(6px, 1.8vw, 8px);
   grid-area: 1 / 2;
   justify-self: end;
-  margin-right: clamp(9px, 3vw, 13px);
-  color: #ed7793;
 }
 
 .winter-onboarding-title-ui {
+  right: clamp(6px, 1.8vw, 8px);
   grid-area: 1 / 3;
   justify-self: start;
-  margin-left: clamp(9px, 3vw, 13px);
-  color: #e7a72e;
   animation-delay: -2.1s;
 }
 
@@ -226,51 +218,44 @@ html[data-season-theme="winter"] {
 .winter-onboarding-title-bang,
 .winter-onboarding-title-hak {
   position: relative;
-  font-size: clamp(58px, 13vw, 82px);
-  letter-spacing: -0.08em;
+  width: clamp(92px, 21vw, 124px);
 }
 
 .winter-onboarding-title-gyeo {
   left: clamp(12px, 6vw, 24px);
   grid-area: 2 / 1;
-  color: #4c9dbc;
   animation-delay: -1.6s;
 }
 
 .winter-onboarding-title-ul {
   left: clamp(4px, 2vw, 8px);
   grid-area: 2 / 2;
-  color: #4e9a73;
   animation-delay: -0.9s;
 }
 
 .winter-onboarding-title-bang {
   left: clamp(-8px, -2vw, -4px);
   grid-area: 2 / 3;
-  color: #8b72bb;
   animation-delay: -3.2s;
 }
 
 .winter-onboarding-title-hak {
   left: clamp(-24px, -6vw, -12px);
   grid-area: 2 / 4;
-  color: #df615b;
   animation-delay: -2.4s;
 }
 
 .winter-onboarding-title-il {
+  left: clamp(6px, 1.8vw, 8px);
   grid-area: 3 / 2;
   justify-self: end;
-  margin-right: clamp(9px, 3vw, 13px);
-  color: #9a683f;
   animation-delay: -1.3s;
 }
 
 .winter-onboarding-title-gi {
+  right: clamp(6px, 1.8vw, 8px);
   grid-area: 3 / 3;
   justify-self: start;
-  margin-left: clamp(9px, 3vw, 13px);
-  color: #3f76ad;
   animation-delay: -2.7s;
 }
 
@@ -386,24 +371,6 @@ html[data-season-theme="winter"] {
   );
 }
 
-.theme-winter .summer-sky-accent::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.42;
-  background-image:
-    url("/winter-theme/snowflake.png"), url("/winter-theme/snowflake.png");
-  background-repeat: no-repeat;
-  background-position:
-    8% 22%,
-    77% 68%;
-  background-size:
-    38px 38px,
-    24px 24px;
-  pointer-events: none;
-  animation: winter-snowfall-one 8s ease-in-out infinite alternate;
-}
-
 html[data-season-theme="winter"] .summer-diary-button-primary {
   border-color: var(--winter-primary-dark) !important;
   background:
@@ -429,6 +396,47 @@ html[data-season-theme="winter"] .summer-diary-button-secondary {
     ),
     #fffdf4 !important;
   color: #3f7691 !important;
+}
+
+html[data-season-theme="winter"]
+  .summer-diary-button-primary:active:not(:disabled) {
+  background:
+    repeating-linear-gradient(
+      -7deg,
+      transparent 0 9px,
+      rgba(38, 101, 142, 0.09) 9px 10px
+    ),
+    linear-gradient(135deg, var(--winter-primary) 0%, #408bb7 100%) !important;
+  box-shadow:
+    0 2px 0 rgba(39, 105, 145, 0.22),
+    0 4px 8px rgba(57, 125, 163, 0.12) !important;
+  filter: saturate(0.96) !important;
+}
+
+html[data-season-theme="winter"]
+  .summer-diary-button-secondary:active:not(:disabled) {
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 11px,
+      rgba(76, 132, 161, 0.13) 11px 12px
+    ),
+    #f1f8f8 !important;
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.68),
+    0 1px 0 rgba(70, 126, 151, 0.14),
+    0 3px 7px rgba(50, 111, 145, 0.05) !important;
+  filter: brightness(0.99) saturate(0.96) !important;
+}
+
+html[data-season-theme="winter"]
+  .summer-diary-button[aria-disabled="true"]:not(
+    [aria-busy="true"]
+  ):active {
+  background: #e5eff2 !important;
+  box-shadow:
+    inset 0 2px 3px rgba(71, 119, 139, 0.13),
+    0 1px 0 rgba(71, 119, 139, 0.13) !important;
 }
 
 .theme-winter :is(.ai-quota-counter, .daily-status-plain) {
