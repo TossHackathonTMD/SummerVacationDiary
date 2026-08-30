@@ -25,16 +25,15 @@ html[data-season-theme="winter"] {
 }
 
 .season-theme-unlock {
+  all: unset;
   display: inline;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  appearance: none;
-  background: transparent;
   color: inherit;
   font: inherit;
   letter-spacing: inherit;
-  cursor: pointer;
+  line-height: inherit;
+  text-align: inherit;
+  -webkit-tap-highlight-color: transparent;
+  cursor: inherit;
 }
 
 .season-theme-unlock:focus-visible {
@@ -280,6 +279,7 @@ html[data-season-theme="winter"] {
   bottom: calc(var(--winter-content-bottom) + 5px);
   left: 2%;
   width: 19%;
+  animation: winter-sled 5.2s ease-in-out -1s infinite;
 }
 
 .winter-onboarding-snowman {
@@ -287,6 +287,8 @@ html[data-season-theme="winter"] {
   right: 4%;
   bottom: calc(var(--winter-content-bottom) + 138px);
   width: 15%;
+  transform-origin: 50% 75%;
+  animation: winter-snowman 5.6s ease-in-out -2.4s infinite;
 }
 
 .winter-onboarding-pine-tree {
@@ -294,6 +296,8 @@ html[data-season-theme="winter"] {
   bottom: calc(var(--winter-content-bottom) + 148px);
   left: 4%;
   width: 17%;
+  transform-origin: 48% 100%;
+  animation: winter-pine-sway 5.8s ease-in-out -2s infinite;
 }
 
 .winter-onboarding-girl {
@@ -310,6 +314,7 @@ html[data-season-theme="winter"] {
   bottom: calc(var(--winter-content-bottom) + 103px);
   left: 9%;
   width: 14%;
+  animation: winter-snow-fort 5.5s ease-in-out -3s infinite;
 }
 
 .winter-onboarding-mittens {
@@ -317,6 +322,7 @@ html[data-season-theme="winter"] {
   right: 21%;
   bottom: calc(var(--winter-content-bottom) + 18px);
   width: 8.5%;
+  animation: winter-mittens 4.8s ease-in-out -2s infinite;
 }
 
 .winter-onboarding-penguin {
@@ -324,6 +330,7 @@ html[data-season-theme="winter"] {
   right: 3%;
   bottom: calc(var(--winter-content-bottom) + 10px);
   width: 12%;
+  animation: winter-penguin 5.2s steps(4, end) -2s infinite;
 }
 
 .winter-onboarding-action-area {
@@ -530,6 +537,42 @@ html[data-season-theme="winter"] .summer-diary-button-secondary {
   }
 }
 
+@keyframes winter-sled {
+  0%,
+  100% {
+    transform: translate3d(-3px, 1px, 0) rotate(-2deg);
+  }
+  40% {
+    transform: translate3d(6px, -4px, 0) rotate(2.8deg);
+  }
+  70% {
+    transform: translate3d(3px, 2px, 0) rotate(-1deg);
+  }
+}
+
+@keyframes winter-snowman {
+  0%,
+  100% {
+    transform: translate3d(-3px, 6px, 0) rotate(-7deg);
+  }
+  48% {
+    transform: translate3d(5px, -10px, 0) rotate(9deg);
+  }
+  70% {
+    transform: translate3d(7px, -2px, 0) rotate(3deg);
+  }
+}
+
+@keyframes winter-pine-sway {
+  0%,
+  100% {
+    transform: rotate(-1.5deg);
+  }
+  50% {
+    transform: rotate(2deg);
+  }
+}
+
 @keyframes winter-girl {
   0%,
   100% {
@@ -537,6 +580,36 @@ html[data-season-theme="winter"] .summer-diary-button-secondary {
   }
   50% {
     transform: translate3d(0, -5px, 0) rotate(0.8deg) scale(1.015);
+  }
+}
+
+@keyframes winter-snow-fort {
+  0%,
+  100% {
+    transform: translate3d(0, 1px, 0) rotate(-0.7deg);
+  }
+  50% {
+    transform: translate3d(2px, -2px, 0) rotate(0.8deg);
+  }
+}
+
+@keyframes winter-mittens {
+  0%,
+  100% {
+    transform: translate3d(-4px, 3px, 0) rotate(-8deg);
+  }
+  50% {
+    transform: translate3d(5px, -8px, 0) rotate(14deg);
+  }
+}
+
+@keyframes winter-penguin {
+  0%,
+  100% {
+    transform: translate3d(-5px, 0, 0) rotate(-1deg);
+  }
+  50% {
+    transform: translate3d(6px, -2px, 0) rotate(1deg);
   }
 }
 

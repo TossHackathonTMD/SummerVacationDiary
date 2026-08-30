@@ -28,14 +28,14 @@ export function SeasonThemeUnlock({ onUnlock }: { onUnlock: () => void }) {
       tapCountRef.current = 0;
       resetTimerRef.current = null;
       onUnlock();
-      toast.openToast("겨울방학 테마가 열렸어요.");
+      toast.openToast("겨울방학 이스터에그를 발견했어요.");
       return;
     }
 
     tapCountRef.current = nextCount;
     if (nextCount >= 2) {
       toast.openToast(
-        `겨울방학까지 ${UNLOCK_TAP_COUNT - nextCount}번 남았어요.`,
+        `숨겨진 이스터에그까지 ${UNLOCK_TAP_COUNT - nextCount}번 남았어요.`,
       );
     }
 
