@@ -55,15 +55,16 @@
 }
 ```
 
-| 필드             | 타입·제약                                                   |
-| ---------------- | ----------------------------------------------------------- |
-| `all`            | 필수 통합 AI 검사 카운터, `limit`은 2                       |
-| `nextRefillAt`   | 다음 1개 충전 시각인 ISO date string                        |
-| `resetAt`        | 이전 클라이언트 호환 필드, `nextRefillAt`과 같은 값         |
-| `blocked`        | `null`, `device`, `ip-burst`, `ip-daily`, `service` 중 하나 |
-| `region.allowed` | boolean. 누락 시 클라이언트는 `true`로 호환 처리            |
-| `region.country` | ISO 3166-1 alpha-2 string 또는 `null`로 기대                |
-| `testMode`       | `true`일 때만 true, 누락 시 false                           |
+| 필드                | 타입·제약                                                   |
+| ------------------- | ----------------------------------------------------------- |
+| `all`               | 필수 통합 AI 검사 카운터, `limit`은 2                       |
+| `nextRefillAt`      | 다음 1개 충전 시각인 ISO date string                        |
+| `resetAt`           | 이전 클라이언트 호환 필드, `nextRefillAt`과 같은 값         |
+| `blocked`           | `null`, `device`, `ip-burst`, `ip-daily`, `service` 중 하나 |
+| `region.allowed`    | boolean. 누락 시 클라이언트는 `true`로 호환 처리            |
+| `region.country`    | ISO 3166-1 alpha-2 string 또는 `null`로 기대                |
+| `testMode`          | `true`일 때만 true, 누락 시 false                           |
+| `adRewardAvailable` | 잔여량이 2개 미만이라 광고 1회로 1개를 추가할 수 있는지     |
 
 클라이언트는 `quota.all`만 통합 `AI 검사 기회`의 권위값으로 사용합니다.
 Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, 사용자 기회와 IP counter를 요청당 한 번 예약하는 `consume_diary_ai_inspection_quota_v2` RPC를 호출합니다. 서비스 counter는 실제 요청한 sketch·analyze 작업별로 전달하며, 저장소 SQL은 advisory transaction lock과 사용자 행 잠금으로 같은 식별자의 동시 차감을 직렬화합니다.
@@ -98,7 +99,23 @@ Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, �
 - **관련 기능:** F-01, F-10
 - **구현 파일:** `src/hooks/useAiQuota.ts`, `src/services/supabaseEdge.ts`
 
-## A-02 통합 AI 검사
+## A-02 리워드 광고 충전
+
+```json
+{
+  "action": "grant-ad-reward",
+  "rewardId": "b5b540e8-9992-4ec5-8a92-06b7c7f2b7d6"
+}
+```
+
+- 광고 SDK의 `userEarnedReward` 이후에만 호출합니다.
+- 현재 잔여량이 0개 또는 1개이면 1개를 추가하고 2개를 넘기지 않습니다.
+- 일일 광고 횟수 제한은 없으며, 충전한 기회를 사용하면 새 광고로 다시 충전할 수 있습니다.
+- `(user_hash, rewardId)`가 같으면 중복 callback으로 보고 잔여량을 다시 올리지 않습니다.
+- PR #184 클라이언트 호환을 위해 `rewardId`가 없는 요청은 전환 기간에 Edge Function이 UUID를 생성합니다.
+- 응답은 갱신된 공통 `quota` 객체입니다.
+
+## A-03 통합 AI 검사
 
 ### 요청
 
@@ -220,11 +237,11 @@ rate-limit-unavailable
 - **관련 기능:** F-05, F-10
 - **구현 파일:** `src/services/styleTransfer.ts`, `src/services/supabaseEdge.ts`, `src/services/sketchLedger.ts`
 
-## A-03 일기 분석 결과
+## A-04 일기 분석 결과
 
 ### 통합 요청의 분석 입력
 
-분석 입력은 A-02의 `inspect` 요청 안에 포함되며 `runAnalyze=true`일 때만
+분석 입력은 A-03의 `inspect` 요청 안에 포함되며 `runAnalyze=true`일 때만
 전송됩니다. 결과는 최상위 `analysis` 객체로 반환됩니다.
 
 제목·날짜·날씨·낮/밤 배경은 완성 이미지와 화면 표현에만 사용하며 분석 API에는 전송하지 않습니다.
@@ -232,7 +249,7 @@ rate-limit-unavailable
 - **timeout:** 통합 요청 기준 150초
 - **Path·Query parameter:** 없음
 - **권한:** 공통 publishable key와 익명 식별 header
-- **서버 validation·rate limit:** A-02의 통합 요청 정책과 동일
+- **서버 validation·rate limit:** A-03의 통합 요청 정책과 동일
 
 ### 성공 응답
 
@@ -264,7 +281,7 @@ interface AnalyzeResponse {
 
 ### 오류 응답
 
-최소 body와 HTTP 매핑 방식은 A-02와 같습니다. 인식하는 분석 server code:
+최소 body와 HTTP 매핑 방식은 A-03과 같습니다. 인식하는 분석 server code:
 
 ```text
 timeout
@@ -285,7 +302,7 @@ invalid-response
 - **관련 기능:** F-06, F-10
 - **구현 파일:** `src/services/diaryAnalysis.ts`, `src/hooks/useDiaryAnalysis.ts`, `src/services/supabaseEdge.ts`
 
-## A-04 연속 기록
+## A-05 연속 기록
 
 네 action은 모두 빈 body의 `action` 값과 공통 `x-diary-client-id` header만 사용합니다. Edge Function이 client ID를 salt 포함 SHA-256으로 변환하고 service role로 아래 RPC를 호출하므로, 브라우저에는 hash나 DB 실행 권한이 노출되지 않습니다.
 

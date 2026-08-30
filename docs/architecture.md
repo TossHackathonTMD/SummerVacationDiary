@@ -181,7 +181,7 @@ sequenceDiagram
 `all` 사용량에 선반영하고, 통합 잔여량이 0이면 두 작업을 함께 선차단합니다.
 
 클라이언트는 필요한 그림·분석 작업을 하나의 `inspect` 요청으로 모읍니다.
-Edge Function은 사용자 충전 기회와 IP를 요청당 한 번 예약하고 실제 실행할 sketch·analyze service counter만 증가시키는 `consume_diary_ai_inspection_quota_v2` RPC를 호출합니다. 사용자 기회는 최초 2개이며 매일 09:00 KST에 1개를 충전하되 최대 2개까지만 보유합니다. 저장소 SQL은 transaction advisory lock과 사용자 행 잠금으로 같은 식별자의 동시 요청을 직렬화합니다.
+Edge Function은 사용자 충전 기회와 IP를 요청당 한 번 예약하고 실제 실행할 sketch·analyze service counter만 증가시키는 `consume_diary_ai_inspection_quota_v2` RPC를 호출합니다. 사용자 기회는 최초 2개이며 매일 09:00 KST에 1개를 충전하되 최대 2개까지만 보유합니다. 잔여량이 2개 미만이면 `grant_diary_ai_ad_reward_v2`가 새로운 광고 영수증당 1개를 추가하며 일일 횟수 제한은 없습니다. 저장소 SQL은 transaction advisory lock과 사용자 행 잠금으로 같은 식별자의 동시 요청을 직렬화하고 영수증 기본 키로 중복 callback을 막습니다.
 
 ## 연속 기록 흐름
 

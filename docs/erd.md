@@ -13,6 +13,18 @@
 ```mermaid
 erDiagram
     DIARY_USER_PROGRESS ||--o{ DIARY_ACTIVITY_DAYS : "user_hash cascade"
+    DIARY_AI_USER_CREDITS ||--o{ DIARY_AI_AD_REWARD_RECEIPTS : "user_hash"
+    DIARY_AI_USER_CREDITS {
+        text user_hash PK
+        smallint balance
+        timestamptz last_refill_slot
+        timestamptz updated_at
+    }
+    DIARY_AI_AD_REWARD_RECEIPTS {
+        text user_hash PK,FK
+        uuid reward_id PK
+        timestamptz rewarded_at
+    }
     DIARY_AI_RATE_LIMITS {
         text scope PK
         text identifier_hash PK
@@ -68,13 +80,14 @@ diary:v1:<id>
 
 ## table 책임
 
-| table                   | 책임                                              | 주요 무결성                                                        |
-| ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------ |
-| `diary_ai_user_credits` | 사용자별 AI 검사 잔여량과 마지막 충전 경계        | SHA-256 PK, 잔여량 0~2, UTC day 경계                               |
-| `diary_ai_rate_limits`  | IP·서비스 scope·hash·action·window별 AI 요청 횟수 | 복합 PK, 허용값 check, 0 이상 count                                |
-| `diary_user_progress`   | 첫/최근 방문과 서로 다른 방문일 수                | SHA-256 형식 PK, `visit_days >= 1`                                 |
-| `diary_activity_days`   | 실제 앱 방문 당일 완성 여부                       | `(user_hash, activity_date)` PK로 하루 1회, 사용자 삭제 시 cascade |
-| `diary_milestones`      | 연속·누적 기준과 표시 문구                        | `(metric, threshold)` PK, tier check                               |
+| table                         | 책임                                              | 주요 무결성                                                        |
+| ----------------------------- | ------------------------------------------------- | ------------------------------------------------------------------ |
+| `diary_ai_user_credits`       | 사용자별 AI 검사 잔여량과 마지막 충전 경계        | SHA-256 PK, 잔여량 0~2, UTC day 경계                               |
+| `diary_ai_ad_reward_receipts` | 광고 완료 callback의 중복 충전 방지               | `(user_hash, reward_id)` PK, UUID 영수증                           |
+| `diary_ai_rate_limits`        | IP·서비스 scope·hash·action·window별 AI 요청 횟수 | 복합 PK, 허용값 check, 0 이상 count                                |
+| `diary_user_progress`         | 첫/최근 방문과 서로 다른 방문일 수                | SHA-256 형식 PK, `visit_days >= 1`                                 |
+| `diary_activity_days`         | 실제 앱 방문 당일 완성 여부                       | `(user_hash, activity_date)` PK로 하루 1회, 사용자 삭제 시 cascade |
+| `diary_milestones`            | 연속·누적 기준과 표시 문구                        | `(metric, threshold)` PK, tier check                               |
 
 ## public RPC
 
@@ -85,6 +98,7 @@ table 직접 권한은 모두 회수하고 다음 함수만 `service_role`에 �
 | `consume_diary_ai_inspection_quota_v2` | 충전을 반영하고 사용자 기회·IP·서비스 counter를 한 transaction에서 검사·예약 |
 | `refund_diary_ai_inspection_quota_v2`  | 환불 가능한 실패의 사용자 기회·보호 counter 반환                             |
 | `read_diary_ai_inspection_quota_v2`    | 충전을 반영하는 비차감 quota snapshot 조회                                   |
+| `grant_diary_ai_ad_reward_v2`          | 새 광고 영수증마다 잔여량을 최대 2개 안에서 1개 충전                         |
 | `cleanup_diary_ai_rate_limits`         | 기준 시각보다 오래된 rate-limit 행 정리                                      |
 | `record_diary_app_visit`               | 한국 날짜 방문을 멱등 반영하고 snapshot 반환                                 |
 | `read_diary_progress`                  | 현재 연속 일수와 누적 작성일 조회                                            |
@@ -103,7 +117,7 @@ quota와 progress 쓰기는 user hash 기반 PostgreSQL advisory transaction loc
 
 ## 권한과 운영
 
-- 네 public table 모두 RLS가 활성화됩니다.
+- 모든 public table에 RLS가 활성화됩니다.
 - `anon`, `authenticated`는 table·RPC 직접 권한이 없습니다.
 - Edge Function이 service role로만 RPC를 호출합니다.
 - `cleanup_diary_ai_rate_limits`는 설치만 되므로 운영 환경에서 cron schedule과 보존 기간을 정해야 합니다.

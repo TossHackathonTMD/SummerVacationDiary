@@ -165,7 +165,7 @@ quota snapshot은 UI 표시와 선차단 용도입니다. 클라이언트는 공
 - 공개 이미지 URL을 만들거나 사진을 업로드하는 공유 서버는 없습니다.
 - 브라우저 Clipboard fallback은 현재 페이지 URL만 복사합니다.
 
-제공된 서버는 사용자별 AI 검사 기회를 최대 2개 저장하고 매일 09:00 KST에 1개 충전합니다. IP 20회/10분·100회/UTC day, sketch 150회/UTC day, analyze 250회/UTC day 보호 제한은 유지합니다. 확인 가능한 국가가 `KR`이 아니면 차단하고, 국가 header가 없으면 허용합니다. 실패 시 `content-blocked`, `invalid-image`, `invalid-input`, `invalid-content`만 차감을 유지하고 그 밖의 오류는 사용자 기회와 해당 보호 counter 환불을 시도합니다.
+제공된 서버는 사용자별 AI 검사 기회를 최대 2개 저장하고 매일 09:00 KST에 1개 충전합니다. 잔여량이 2개 미만이면 완료된 리워드 광고마다 1개를 추가하며 일일 횟수 제한은 없습니다. 같은 광고 callback은 `(user_hash, reward_id)` 영수증으로 중복 충전을 막습니다. 광고 SDK가 서버 검증 영수증을 제공하지 않으므로 임의 보상 요청을 완전히 증명할 수는 없고, 잔액 상한과 IP 20회/10분·100회/UTC day, sketch 150회/UTC day, analyze 250회/UTC day 제한을 비용 보호 장치로 유지합니다. 확인 가능한 국가가 `KR`이 아니면 차단하고, 국가 header가 없으면 허용합니다. 실패 시 `content-blocked`, `invalid-image`, `invalid-input`, `invalid-content`만 차감을 유지하고 그 밖의 오류는 사용자 기회와 해당 보호 counter 환불을 시도합니다.
 
 ## 확인이 필요한 서버 항목
 

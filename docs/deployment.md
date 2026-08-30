@@ -51,10 +51,10 @@ npm run deploy
 
 QR 테스트에는 반드시 테스트 광고 ID를 사용합니다. 라이브 ID로 테스트하면 정책 위반으로 간주될 수 있습니다. 심사 제출 번들은 테스트한 번들과 동일할 필요가 없으므로, 두 번 빌드해 각각 배포합니다.
 
-| 목적          | 명령                 | 광고 ID   |
-| ------------- | -------------------- | --------- |
-| QR 테스트     | `npm run build:test` | 테스트 ID |
-| 심사·출시     | `npm run build`      | 라이브 ID |
+| 목적      | 명령                 | 광고 ID   |
+| --------- | -------------------- | --------- |
+| QR 테스트 | `npm run build:test` | 테스트 ID |
+| 심사·출시 | `npm run build`      | 라이브 ID |
 
 `build:test`는 `VITE_USE_TEST_ADS=true`를 넘깁니다. 기본값이 라이브인 이유는, 플래그를 잊었을 때 정상 동작하는 출시본이 나오는 편이 수익이 0인 출시본보다 낫기 때문입니다. 분기는 `src/constants/ads.ts`에 있습니다.
 
@@ -73,7 +73,7 @@ grep -c "ait-ad-test" dist/web/assets/index-*.js   # 0이어야 합니다
 1. Supabase SQL Editor에서 `supabase/sql/001_app_database.sql` 전체를 실행합니다.
 2. `OPENAI_API_KEY`, `RATE_LIMIT_SALT`, Supabase secret 등 [API 명세](./api-specification.md#서버-환경-변수)의 server secret을 설정합니다.
 3. `supabase/diary-ai` source를 프로젝트의 `diary-ai` Edge Function으로 배포합니다.
-4. `quota-status` 최초 2개 지급과 1개 차감·환불을 확인한 뒤 `progress-visit`, `progress-complete`, `inspect` 순으로 smoke test합니다.
+4. `quota-status` 최초 2개 지급과 1개 차감·환불, `grant-ad-reward`의 0→1·1→2 충전과 같은 영수증 중복 방지를 확인한 뒤 `progress-visit`, `progress-complete`, `inspect` 순으로 smoke test합니다.
 5. 공개 URL과 publishable key만 프론트엔드 build 환경에 주입합니다.
 
 프론트엔드 배포만으로 실제 그림 생성·분석·사용량 강제·연속 기록 동기화가 활성화되지는 않습니다. 운영 배포 version, rate-limit 정리 schedule과 보존 기간은 실제 서버에서 확인해야 합니다.
@@ -89,13 +89,13 @@ SDK 3.1.1 이상은 SDK 2.x와 같은 Origin을 사용합니다.
 
 ## 환경별 권장 확인
 
-| 환경           | 확인 항목                                                           |
-| -------------- | ------------------------------------------------------------------- |
-| AIT Devtools   | mock/필터, 권한·네트워크·safe area, localStorage Origin 병합        |
-| 콘솔 QR 테스트 | `saveBase64Data`, Toss 공유창, `Storage` 달력, 네이티브 뒤로가기    |
-| iOS 실기기     | cover 자르기·회전, native back, 앞·뒤 스와이프 차단, 보관 일기 관리 |
-| Android 실기기 | 빈 MIME, 저장 파일명, native back, 키보드 닫힘 뒤 하단 CTA 복원     |
-| 실제 Supabase  | inspect·quota-status·progress action, 멱등 완료, timeout, 오류 code |
+| 환경           | 확인 항목                                                                          |
+| -------------- | ---------------------------------------------------------------------------------- |
+| AIT Devtools   | mock/필터, 권한·네트워크·safe area, localStorage Origin 병합                       |
+| 콘솔 QR 테스트 | `saveBase64Data`, Toss 공유창, `Storage` 달력, 네이티브 뒤로가기                   |
+| iOS 실기기     | cover 자르기·회전, native back, 앞·뒤 스와이프 차단, 보관 일기 관리                |
+| Android 실기기 | 빈 MIME, 저장 파일명, native back, 키보드 닫힘 뒤 하단 CTA 복원                    |
+| 실제 Supabase  | inspect·quota-status·광고 반복 충전·progress action, 멱등 완료, timeout, 오류 code |
 
 ## 출시 전 체크리스트
 
@@ -106,6 +106,8 @@ SDK 3.1.1 이상은 SDK 2.x와 같은 Origin을 사용합니다.
 - [ ] 처리 동의 문구가 실제 외부 전송·보존 정책과 일치한다.
 - [ ] 한국·해외 IP의 실제 지역 제한 동작을 확인했다.
 - [ ] AI 검사 기회가 최초 2개이고 09:00 KST에 1개만 충전되며 최대 2개를 넘지 않는다.
+- [ ] 잔여량 0/2와 1/2에서 작은 광고 CTA가 표시되고 광고마다 1개가 충전되며 2/2에서 숨겨진다.
+- [ ] 같은 광고 `rewardId` 중복 요청은 한 번만 반영되고, 충전 기회를 소진하면 새 광고로 다시 충전할 수 있다.
 - [ ] iOS·Android에서 저장·공유를 실기기로 확인했다.
 - [ ] 서비스·QR Origin에서 Supabase preflight와 실제 요청이 성공한다.
 - [ ] SDK 3.0/3.1.0 Origin에 데이터가 있으면 현재 값은 유지되고 누락된 앱 key만 복원된다.

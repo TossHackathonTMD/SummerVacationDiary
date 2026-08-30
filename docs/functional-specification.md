@@ -204,13 +204,13 @@
 - **Actor:** 사용자
 - **사전 조건:** Supabase가 설정되고 클라이언트 테스트 모드가 꺼짐
 - **입력:** 앱 시작의 `quota-status` 및 각 응답에 포함된 `quota`
-- **정상 흐름:** 서버가 반환한 필수 `all` 카운터를 통합 AI 검사 기회로 표시합니다. 최초 2개를 받고 매일 오전 9시에 1개를 충전하며 최대 2개까지만 보관합니다. 사진 변환이나 분석 중 하나만 다시 실행되어도 Edge Function이 v2 consume RPC로 기회 1개를 예약하며, 통합 기회를 모두 사용하면 두 작업을 함께 선차단하고 미리보기 처리 애니메이션도 생략합니다. 그림 진행 중 요청은 로컬 ledger로 선반영합니다. 업로드 화면에서는 이 잔여량을 오늘의 도장·연속 기록 안내와 한 카드에 표시합니다. DB 수준 원자성은 설치된 RPC SQL 확인이 필요합니다.
+- **정상 흐름:** 서버가 반환한 필수 `all` 카운터를 통합 AI 검사 기회로 표시합니다. 최초 2개를 받고 매일 오전 9시에 1개를 충전하며 최대 2개까지만 보관합니다. 사진 변환이나 분석 중 하나만 다시 실행되어도 Edge Function이 v2 consume RPC로 기회 1개를 예약하며, 통합 기회를 모두 사용하면 두 작업을 함께 선차단하고 미리보기 처리 애니메이션도 생략합니다. 그림 진행 중 요청은 로컬 ledger로 선반영합니다. 업로드 화면에서는 기존 숫자·2칸 meter를 유지하고, 잔여량이 0개 또는 1개이며 광고 SDK가 지원되면 meter 아래의 작은 `광고 보고 +1` CTA로 새 광고마다 1개를 충전합니다. 2개이면 CTA를 숨기고, 기회를 소진하면 다시 표시합니다. DB 수준 원자성은 설치된 RPC SQL 확인이 필요합니다.
 - **예외 흐름:** 조회 실패 시 사용량 UI를 `unknown`으로 두되 일기 흐름을 차단하지 않습니다. 해외 지역이면 실제 서버 작업을 선차단하고 원본 사진 흐름은 유지합니다.
 - **출력:** 통합 AI 검사 사용량 안내, 두 작업의 공동 선차단, 오류 문구
 - **권한:** 사용자 인증 없음. 익명 Toss 키 또는 브라우저 설치 ID를 `x-diary-client-id`로 보냄
 - **관련 화면:** 업로드·작성 안내, 지역 차단 다이얼로그
-- **관련 API:** `diary-ai`의 `quota-status`, `inspect`
-- **관련 데이터:** `summer-vacation-diary:quota:v2`, `summer-vacation-diary:client-id:v1`, Supabase `public.diary_ai_user_credits`, `public.diary_ai_rate_limits`
+- **관련 API:** `diary-ai`의 `quota-status`, `grant-ad-reward`, `inspect`
+- **관련 데이터:** `summer-vacation-diary:quota:v2`, `summer-vacation-diary:client-id:v1`, Supabase `public.diary_ai_user_credits`, `public.diary_ai_ad_reward_receipts`, `public.diary_ai_rate_limits`
 - **완료 조건:** 유효한 snapshot을 표시하거나 확인 불가 상태에서 기능을 안전하게 계속함
 - **상태:** `구현 완료`
 - **근거:** `src/hooks/useAiQuota.ts`, `src/services/aiQuotaStore.ts`, `src/services/supabaseEdge.ts`, `src/components/AiQuotaNotice.tsx`
