@@ -8,11 +8,11 @@
 
 사진 선택·자르기와 일기 작성, 그림 변환, 선생님 첨삭, 결과물 저장, 일기 달력 보관과 연속 작성 도장까지 하나의 흐름으로 제공합니다.
 
-[![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react&logoColor=white)](https://react.dev/) [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Vite](https://img.shields.io/badge/Vite-6.4.3-646CFF?logo=vite&logoColor=white)](https://vite.dev/) [![Apps in Toss](https://img.shields.io/badge/Apps_in_Toss-2.10.7-0064FF?logo=toss&logoColor=white)](https://developers-apps-in-toss.toss.im/) [![TDS Mobile](https://img.shields.io/badge/TDS_Mobile-2.5.0-0064FF?logo=toss&logoColor=white)](https://tossmini-docs.toss.im/tds-mobile/) [![React Easy Crop](https://img.shields.io/badge/React_Easy_Crop-6.2.3-61DAFB?logo=react&logoColor=white)](https://valentinh.github.io/react-easy-crop/) [![Supabase](https://img.shields.io/badge/Supabase-Edge_Functions_%26_PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react&logoColor=white)](https://react.dev/) [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Vite](https://img.shields.io/badge/Vite-6.4.3-646CFF?logo=vite&logoColor=white)](https://vite.dev/) [![Apps in Toss](https://img.shields.io/badge/Apps_in_Toss-3.1.1-0064FF?logo=toss&logoColor=white)](https://developers-apps-in-toss.toss.im/) [![TDS Mobile](https://img.shields.io/badge/TDS_Mobile-2.5.1-0064FF?logo=toss&logoColor=white)](https://tossmini-docs.toss.im/tds-mobile/) [![React Easy Crop](https://img.shields.io/badge/React_Easy_Crop-6.2.3-61DAFB?logo=react&logoColor=white)](https://valentinh.github.io/react-easy-crop/) [![Supabase](https://img.shields.io/badge/Supabase-Edge_Functions_%26_PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 
 ## 동작 화면
 
-아래 화면은 온보딩부터 사진 동의·자르기, 일기 작성과 AI 검사, 완성 후 기기 보관·공유, 연속 작성 기록, 일기 달력 재열람과 최종 결과물까지 현재 앱의 핵심 흐름을 보여줍니다. 완성 일기는 저장 직후 달력에 자동 보관되고, 같은 날짜의 여러 기록은 상세 뷰어의 이전·다음 버튼으로 넘겨 볼 수 있습니다.
+아래 화면은 온보딩부터 사진 동의·자르기, 일기 작성과 AI 검사, 완성 후 기기 보관·공유, 연속 작성 기록, 일기 달력 재열람과 최종 결과물까지 현재 앱의 핵심 흐름을 보여줍니다. 완성 일기는 저장 직후 달력에 자동 보관되고, 같은 날짜의 여러 기록은 상세 뷰어의 이전·다음 버튼이나 그림 영역 좌우 스와이프로 넘겨 볼 수 있습니다.
 
 <table>
   <tr>
@@ -24,7 +24,7 @@
     <td align="center" width="50%">
       <strong>2. 사진 업로드</strong><br /><br />
       <img src="./docs/screenshots/02-photo-upload.png" width="300" alt="오늘의 도장과 연속 작성일, AI 검사 기회를 확인하며 사진을 업로드하는 화면" /><br /><br />
-      <sub>오늘의 도장 완료 여부와 연속 작성일, 하루 AI 검사 기회를 함께 확인하고 사진 선택을 시작하는 화면</sub>
+      <sub>오늘의 도장 완료 여부와 연속 작성일, AI 검사 잔여량을 함께 확인하고 사진 선택을 시작하는 화면</sub>
     </td>
   </tr>
   <tr>
@@ -60,7 +60,7 @@
     <td align="center" width="50%">
       <strong>8. 저장된 일기 상세</strong><br /><br />
       <img src="./docs/screenshots/08-saved-diary-detail.png" width="300" alt="저장된 그림일기 상세 화면" /><br /><br />
-      <sub>같은 날짜의 기록을 이전·다음 버튼으로 넘겨 보고 삭제·저장 및 공유를 선택하는 화면</sub>
+      <sub>같은 날짜의 기록을 이전·다음 버튼 또는 그림 영역 좌우 스와이프로 넘겨 보고 삭제·저장 및 공유를 선택하는 화면</sub>
     </td>
   </tr>
   <tr>
@@ -98,10 +98,13 @@
 | 일기 작성        | 제목, 6개 날씨, 낮·밤 배경, 13×5 원고지 분량의 본문 입력 (날짜는 오늘로 자동 확정)      | 구현 완료 |
 | 사진 변환        | Supabase `diary-ai` 호출 또는 브라우저 Canvas 로컬 연필 필터 적용                       | 구현 완료 |
 | 일기 검사        | 키워드·감정·첨삭 대상·별표·도장·선생님 한마디 표시                                      | 구현 완료 |
+| AI 검사 기회     | 최대 2개 보유, 매일 오전 9시 1개 충전, 잔여량이 2개 미만이면 광고마다 1개 충전          | 구현 완료 |
 | 결과 이미지 생성 | 처리 중 하단 작업을 잠그고 공개 애니메이션 뒤 1080×1350 그림일기를 JPEG로 합성          | 구현 완료 |
 | 저장·공유        | 토스에서는 기기 저장·공유 API, 브라우저에서는 다운로드·Web Share·링크 복사 사용         | 구현 완료 |
-| 일기 달력        | 사진·본문이 같으면 기존 기록을 교체하고 둘 중 하나가 바뀌면 별도 기록으로 보관          | 구현 완료 |
+| 일기 달력        | 날짜별 최대 2개 보관, 같은 날 기록의 버튼·스와이프 순환과 상세 화면 배경 스크롤 차단    | 구현 완료 |
 | 연속 작성 기록   | 오늘의 완료 도장, 현재 연속·누적 작성일, 재방문 문구와 지정 구간 축하 모달 표시         | 구현 완료 |
+| 종료 확인        | 온보딩·사진 선택 화면에서 네이티브 뒤로가기를 누르면 2개 선택 버튼의 종료 모달 표시     | 구현 완료 |
+| 인앱 광고        | 미리보기·달력의 배너 광고와 잔여 기회 표시 아래의 작은 보상형 광고 CTA                  | 구현 완료 |
 
 세부 사전 조건, 예외 흐름, 권한과 근거 파일은 [기능 명세](./docs/functional-specification.md)에 정리되어 있습니다.
 
@@ -194,8 +197,12 @@ cp .env.example .env
 | `VITE_SUPABASE_URL`             | 선택      | 클라이언트 공개 | `diary-ai` Function이 있는 Supabase 프로젝트 URL    |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | 선택      | 클라이언트 공개 | Supabase publishable key                            |
 | `VITE_AI_TEST_MODE`             | 선택      | 클라이언트 공개 | `true`이면 그림 생성 요청을 생략하고 원본 사진 사용 |
+| `VITE_USE_TEST_ADS`             | 선택      | 클라이언트 공개 | `true`이면 QR 테스트용 광고 ID 사용                 |
+| `VITE_AD_PLACEHOLDER`           | 선택      | 클라이언트 공개 | 브라우저에서 배너 자리 표시자 사용                  |
 
 두 Supabase 변수는 함께 설정해야 합니다. 하나라도 비어 있으면 외부 요청을 보내지 않는 체험 모드로 동작합니다.
+
+광고 관련 두 변수는 `.env.example`에 넣지 않습니다. QR 테스트는 `npm run build:test`가 `VITE_USE_TEST_ADS=true`를 직접 전달하고, `VITE_AD_PLACEHOLDER`는 브라우저 레이아웃 확인 때만 일시적으로 사용합니다.
 
 > `VITE_*` 값은 클라이언트 번들에 포함됩니다. OpenAI API 키나 Supabase secret/service-role key를 넣지 마세요. 실제 모드는 `supabase/sql/001_app_database.sql`을 먼저 적용한 뒤 저장소의 `diary-ai` Function과 server secret을 별도로 배포해야 합니다.
 
@@ -244,11 +251,14 @@ npm run build
 ## 빌드와 배포
 
 ```bash
-npm run build
+npm run build:test # QR 테스트용 광고 ID
 npm run deploy
+
+npm run build
+npm run deploy     # 심사·출시용 광고 ID
 ```
 
-`npm run deploy`는 Apps in Toss 콘솔에 등록된 `summer-vacation-diary` 앱과 배포 권한이 필요합니다. 자세한 절차와 출시 전 확인 항목은 [배포 문서](./docs/deployment.md)에 있습니다.
+`npm run deploy`는 번들을 Apps in Toss 콘솔에 업로드하고 테스트용 앱 스킴을 생성하며, 즉시 사용자에게 출시하지 않습니다. QR에서는 반드시 `build:test` 번들의 테스트 광고 ID를 사용하고, 심사·출시본은 다시 `npm run build`로 생성합니다. 자세한 절차와 출시 전 확인 항목은 [배포 문서](./docs/deployment.md)에 있습니다.
 
 ## 현재 제약
 
@@ -257,7 +267,8 @@ npm run deploy
 - 보관 일기는 서버나 다른 기기와 동기화되지 않으며 앱 데이터 삭제 시 함께 사라질 수 있습니다.
 - 공유 기능은 완성 이미지 파일이 아니라 앱 소개 문구와 미니앱 링크를 공유합니다.
 - 외부 분석·그림 생성은 이 저장소 밖에 배포된 호환 `diary-ai` Function에 의존합니다.
-- 제공된 서버 스냅샷은 사용자별 AI 검사 기회를 최대 2개 보관하고 매일 09:00 KST에 1개 충전합니다. IP 20회/10분·100회/일, sketch 150회/일, analyze 250회/일 보호 제한은 매일 09:00 KST에 초기화됩니다. 운영 배포본의 일치 여부와 데이터 보존 기간은 별도 확인이 필요합니다.
+- SDK 3.0·3.1.0 Origin에 남은 앱 전용 localStorage 값은 SDK 3.1.1 시작 시 현재 Origin의 빈 key에만 병합합니다. Toss `Storage`, IndexedDB와 OPFS는 이 경로에서 병합하지 않습니다.
+- 서버는 사용자별 AI 검사 기회를 최대 2개 보관하고 매일 09:00 KST에 1개 충전합니다. IP 20회/10분·100회/일, sketch 150회/일, analyze 250회/일 보호 제한은 같은 시각에 초기화됩니다. 2026-08-30 운영 Edge Function v136과 DB v2 RPC 일치를 확인했으며, 데이터 보존 기간과 정리 schedule은 별도 확인이 필요합니다.
 - 사진 변환이나 분석이 실패해도 원본 사진과 작성한 글로 JPEG를 완성할 수 있습니다.
 - 저장소에 라이선스 파일이 없어 재사용 조건은 확인이 필요합니다.
 

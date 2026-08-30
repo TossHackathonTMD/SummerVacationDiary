@@ -36,7 +36,7 @@
    - 완성 JPEG를 data URL로 보관하므로 기기 저장소 한도에 빨리 도달할 수 있습니다.
    - 항목 크기 측정, 오래된 기록 정리 UX, 실제 토스 `Storage` 한도 검증이 필요합니다.
 4. Edge Function·DB migration version 관리
-   - Edge Function과 전체 DB bootstrap은 저장소에 있지만 변경 단위 migration과 운영 배포 version 기록은 없습니다.
+   - Edge Function과 전체 DB bootstrap은 저장소에 있고 2026-08-30 운영 v136 확인 기록은 `docs/deployment.md`에 남겼지만, 변경 단위 migration과 자동 배포 이력은 없습니다.
    - 운영 DB의 `pg_get_functiondef` 결과와 table DDL을 순차 migration으로 보관하고 배포 version을 함께 기록해야 rollback과 환경 재현이 가능합니다.
 5. 문서와 코드 계약 자동 확인
    - 환경 변수, storage key, 입력 길이, API action 같은 값은 코드 변경 시 문서가 어긋날 수 있습니다.

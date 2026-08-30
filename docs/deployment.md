@@ -45,6 +45,8 @@ npm run deploy
 
 이 저장소에는 콘솔 credential을 저장하지 않습니다.
 
+`ait deploy`는 `.ait` 번들을 콘솔에 업로드하고 테스트용 앱 스킴을 만드는 단계입니다. 업로드만으로 사용자에게 즉시 공개되지 않으며, 테스트 완료 후 콘솔의 검토 요청·승인·출시 단계를 별도로 거칩니다.
+
 ## 광고 ID와 빌드 구분
 
 인앱 광고는 실제 토스 앱에서만 렌더링됩니다. 브라우저와 샌드박스는 인앱 광고를 지원하지 않으므로, 광고 확인은 콘솔 `테스트하기` QR로 실제 토스 앱에서만 가능합니다.
@@ -61,7 +63,7 @@ QR 테스트에는 반드시 테스트 광고 ID를 사용합니다. 라이브 I
 출시 빌드는 산출물에서 테스트 ID가 없는지 확인합니다.
 
 ```bash
-grep -c "ait-ad-test" dist/web/assets/index-*.js   # 0이어야 합니다
+grep -c "ait-ad-test" dist/assets/index-*.js   # 0이어야 합니다
 ```
 
 ## 외부 기능 배포
@@ -76,7 +78,15 @@ grep -c "ait-ad-test" dist/web/assets/index-*.js   # 0이어야 합니다
 4. `quota-status` 최초 2개 지급과 1개 차감·환불, `grant-ad-reward`의 0→1·1→2 충전과 같은 영수증 중복 방지를 확인한 뒤 `progress-visit`, `progress-complete`, `inspect` 순으로 smoke test합니다.
 5. 공개 URL과 publishable key만 프론트엔드 build 환경에 주입합니다.
 
-프론트엔드 배포만으로 실제 그림 생성·분석·사용량 강제·연속 기록 동기화가 활성화되지는 않습니다. 운영 배포 version, rate-limit 정리 schedule과 보존 기간은 실제 서버에서 확인해야 합니다.
+프론트엔드 배포만으로 실제 그림 생성·분석·사용량 강제·연속 기록 동기화가 활성화되지는 않습니다. 2026-08-30 운영 환경에는 bootstrap SQL과 `diary-ai` v136을 SQL → Edge Function 순서로 배포했고, 아래 항목을 확인했습니다.
+
+- v2 quota 함수 5개와 사용자 기회·광고 영수증 테이블 2개 설치
+- `service_role` RPC 실행 허용, `anon` 직접 실행 차단
+- `quota-status` 최초 2개와 다음 09:00 KST 충전 시각 응답
+- 트랜잭션 롤백 방식의 2→1 소진, 1→2 광고 충전, 동일 `rewardId` 중복 방지
+- 배포된 Edge Function source와 저장소 `supabase/diary-ai/` 일치
+
+이 기록은 해당 날짜의 운영 배포 확인 결과입니다. 이후 서버를 다시 배포하면 같은 순서로 계약을 재검증해야 하며, rate-limit 정리 schedule과 데이터 보존 기간은 별도 운영 설정으로 남아 있습니다.
 
 ### CORS와 Origin
 

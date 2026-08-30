@@ -263,7 +263,7 @@ flowchart LR
 ## 알려진 제약
 
 - 시작 시 저장된 draft를 복원하지 않습니다.
-- Edge Function과 bootstrap SQL은 저장소에서 version 관리하지만 운영 배포 일치 여부는 별도 확인이 필요합니다.
+- 2026-08-30 운영 Edge Function v136과 DB v2 RPC가 저장소 source와 일치함을 확인했습니다. 이후 배포도 동일한 source 대조와 quota·광고 smoke test가 필요합니다.
 - rate-limit 정리 RPC는 제공되지만 실제 주기 실행 schedule과 hash 보존 기간은 운영 설정이 필요합니다.
 - 자동 테스트와 CI 품질 gate가 없습니다.
 - 계정 동기화, 클라우드 백업, PDF 내보내기가 없습니다.

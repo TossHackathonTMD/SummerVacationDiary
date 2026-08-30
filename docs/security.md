@@ -4,7 +4,7 @@
 
 ## 범위
 
-이 문서는 저장소의 클라이언트, `supabase/diary-ai` Edge Function과 `supabase/sql/001_app_database.sql`에서 확인한 보안·데이터 흐름을 설명합니다. 운영 배포 일치 여부, secret·schedule과 법적 보존 정책은 `확인 필요`로 구분합니다.
+이 문서는 저장소의 클라이언트, `supabase/diary-ai` Edge Function과 `supabase/sql/001_app_database.sql`에서 확인한 보안·데이터 흐름을 설명합니다. 2026-08-30 운영 Edge Function v136과 DB v2 RPC의 저장소 일치를 확인했으며, secret·schedule과 법적 보존 정책은 `확인 필요`로 구분합니다.
 
 ## 처리 데이터
 
@@ -61,7 +61,7 @@ flowchart LR
     Edge -->|salt hash 식별자·counter| DB["Supabase PostgreSQL"]
 ```
 
-클라이언트는 OpenAI를 직접 호출하지 않습니다. 제공된 Edge Function은 분석 시 본문과 선택 사진을 low detail image input으로 Chat Completions에 보내고, 그림 생성 시 사진과 `SKETCH_PROMPT`를 Images Edits에 보냅니다. prompt 파일 내용, OpenAI 측 보존, 운영 배포본과의 일치 여부는 제공 자료만으로 확인할 수 없습니다.
+클라이언트는 OpenAI를 직접 호출하지 않습니다. Edge Function은 분석 시 본문과 선택 사진을 low detail image input으로 Chat Completions에 보내고, 그림 생성 시 사진과 `SKETCH_PROMPT`를 Images Edits에 보냅니다. 배포된 v136의 source와 저장소 prompt 파일 일치는 확인했지만, OpenAI 측 보존 정책과 실제 요청·응답 보존 여부는 별도 운영 확인이 필요합니다.
 
 Supabase가 설정되지 않은 경우 사진·일기 내용은 외부 분석 서버로 전송하지 않고 브라우저 안에서 처리합니다.
 
@@ -97,10 +97,10 @@ Supabase가 설정되지 않은 경우 사진·일기 내용은 외부 분석 �
 - Supabase 요청은 publishable key를 `apikey` header로 사용
 - `Authorization` header 없음
 - `x-diary-client-id`는 rate limit 힌트이며 신원 인증으로 사용할 수 없음
-- Edge Function은 `POST`와 `quota-status`·`inspect`·`progress-*` action, 필수 client ID와 입력 구조를 검증함
-- CORS origin은 `*`여서 `https://summer-vacation-diary.apps.tossmini.com`과 `https://summer-vacation-diary.private-apps.tossmini.com`을 포함함; 운영 배포본의 별도 allowlist와 Supabase gateway JWT 설정은 확인 필요
+- Edge Function은 `POST`와 `quota-status`·`grant-ad-reward`·`inspect`·`progress-*` action, 필수 client ID와 입력 구조를 검증함
+- CORS origin은 `*`여서 `https://summer-vacation-diary.apps.tossmini.com`과 `https://summer-vacation-diary.private-apps.tossmini.com`을 포함함; 2026-08-30 운영 v136도 같은 source이고 gateway JWT 검증은 비활성화 상태로 확인
 
-Supabase에는 사용량 제한용 `diary_ai_rate_limits`와 익명 진행용 `diary_user_progress`, `diary_activity_days`, 마일스톤 정의용 `diary_milestones`가 있습니다. 모든 public table은 RLS를 켜고 `anon`·`authenticated`의 table 권한을 회수합니다. 브라우저는 table/RPC에 직접 접근하지 않고 Edge Function의 service role 경로만 사용합니다. 사진·제목·본문·완성 JPEG는 진행 테이블에 저장하지 않습니다.
+Supabase에는 사용량 제한용 `diary_ai_rate_limits`, 사용자 잔여량용 `diary_ai_user_credits`, 광고 중복 방지용 `diary_ai_ad_reward_receipts`와 익명 진행용 `diary_user_progress`, `diary_activity_days`, 마일스톤 정의용 `diary_milestones`가 있습니다. 모든 public table은 RLS를 켜고 `anon`·`authenticated`의 table 권한을 회수합니다. 브라우저는 table/RPC에 직접 접근하지 않고 Edge Function의 service role 경로만 사용합니다. 사진·제목·본문·완성 JPEG는 진행 테이블에 저장하지 않습니다.
 
 ## 입력·응답 방어
 
@@ -169,14 +169,12 @@ quota snapshot은 UI 표시와 선차단 용도입니다. 클라이언트는 공
 
 ## 확인이 필요한 서버 항목
 
-- [ ] 저장소 Edge Function·SQL과 실제 배포 version의 일치
 - [ ] 서버 측 요청 body 크기·MIME 상한 추가 여부
-- [ ] prompt 내용과 운영 배포 version의 일치
 - [ ] 사진·본문·응답·로그의 저장 여부와 보존 기간
 - [ ] hash counter 행의 삭제·보존 정책과 salt rotation 절차
 - [ ] rate-limit 정리 RPC의 주기 schedule과 hash 보존 기간
 - [ ] Supabase가 국가 header를 실제로 전달하는지
-- [ ] wildcard CORS와 Supabase gateway JWT 설정
+- [ ] wildcard CORS와 비활성 gateway JWT 설정을 계속 유지할지에 대한 운영 정책
 - [ ] incident 대응·공개 보안 신고 채널
 
 ## 저장소의 보안 운영 상태

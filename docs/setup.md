@@ -124,10 +124,11 @@ VITE_AI_TEST_MODE=false
 ## Apps in Toss 실기기 확인
 
 ```bash
-npm run build
+npm run build:test
+npm run deploy
 ```
 
-SDK 3.x에서는 `granite dev`와 샌드박스 bridge를 사용하지 않습니다. `npm run build`가 Vite의 `dist/`와 업로드용 `.ait`를 만든 뒤, Apps in Toss 콘솔에 `.ait`를 업로드하고 QR 코드로 iOS·Android 실기기 동작을 확인합니다. SDK 3.x 번들을 출시한 뒤에는 SDK 2.x로 롤백할 수 없으므로 출시 전에 AIT Devtools와 QR 테스트를 모두 완료합니다.
+SDK 3.x에서는 `granite dev`와 샌드박스 bridge를 사용하지 않습니다. 광고가 포함된 QR 테스트는 반드시 `npm run build:test`의 테스트 광고 ID 번들로 진행합니다. 검증이 끝나면 `npm run build`로 라이브 광고 ID가 포함된 심사·출시 번들을 다시 생성합니다. SDK 3.x 번들을 출시한 뒤에는 SDK 2.x로 롤백할 수 없으므로 출시 전에 AIT Devtools와 QR 테스트를 모두 완료합니다.
 
 ## 품질 확인
 

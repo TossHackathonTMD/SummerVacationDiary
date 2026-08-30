@@ -4,10 +4,10 @@
 
 ## 문서 범위
 
-아래 명세는 클라이언트가 실제로 호출하고 검증하는 계약, 저장소의 `supabase/diary-ai/index.ts`, `supabase/sql/001_app_database.sql`을 기준으로 합니다. 운영 배포본과 저장소 source의 일치 여부는 배포 환경에서 확인해야 합니다.
+아래 명세는 클라이언트가 실제로 호출하고 검증하는 계약, 저장소의 `supabase/diary-ai/index.ts`, `supabase/sql/001_app_database.sql`을 기준으로 합니다. 2026-08-30 운영 Edge Function v136과 DB v2 RPC가 이 계약과 일치함을 확인했습니다.
 
-- **확인된 범위:** method·CORS, action별 입력 검증, OpenAI endpoint와 기본 model, 사용량 제한값, 차감·환불 분기, 응답·오류 계약
-- **확인 필요:** 운영 배포 version, secret 값, 로그·DB 보존 작업의 실제 schedule
+- **확인된 범위:** method·CORS, action별 입력 검증, OpenAI endpoint와 기본 model, 사용량 제한값, 차감·환불 분기, 응답·오류 계약, 운영 v136 source 일치와 quota·광고 RPC smoke test
+- **확인 필요:** secret 값, 로그·DB 보존 작업의 실제 schedule, 이후 배포본의 지속적인 일치 여부
 - **근거:** `src/services/supabaseEdge.ts`, `src/services/diaryProgress.ts`, `src/services/diaryAnalysis.ts`, `src/services/styleTransfer.ts`, `src/services/aiQuotaStore.ts`, `src/hooks/useAiQuota.ts`, `supabase/diary-ai/index.ts`, `supabase/sql/001_app_database.sql`
 
 이 API는 이 앱의 AI·사용량·연속 기록 외부 경계입니다. 완성 일기의 사진·본문·JPEG 저장·조회·삭제는 기기 저장소에서만 처리하고, 서버에는 익명 hash 기반 활동일만 저장합니다.
@@ -50,7 +50,8 @@
       "allowed": true,
       "country": "KR"
     },
-    "testMode": false
+    "testMode": false,
+    "adRewardAvailable": false
   }
 }
 ```
