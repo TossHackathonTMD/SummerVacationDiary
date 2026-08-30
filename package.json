@@ -3,26 +3,30 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "dev": "granite dev",
+    "dev": "vite dev",
     "dev:web": "vite dev",
-    "build": "ait build",
-    "build:test": "VITE_USE_TEST_ADS=true ait build",
+    "build": "vite build && ait build",
+    "build:test": "VITE_USE_TEST_ADS=true vite build && ait build",
     "deploy": "ait deploy",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
   "dependencies": {
-    "@apps-in-toss/web-framework": "^2.10.7",
+    "@apps-in-toss/web-framework": "3.1.1",
     "@emotion/react": "^11.0.0",
-    "@toss/tds-colors": "latest",
-    "@toss/tds-mobile": "latest",
-    "@toss/tds-mobile-ait": "latest",
+    "@toss/tds-colors": "0.1.0",
+    "@toss/tds-mobile": "2.5.1",
+    "@toss/tds-mobile-ait": "2.5.1",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-easy-crop": "^6.2.3"
   },
   "devDependencies": {
+    "@apps-in-toss/devtools": "3.1.1",
     "@eslint/js": "^9.21.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
