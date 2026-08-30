@@ -24,13 +24,15 @@ export function useRewardedAdOffer(): {
   canOffer: boolean;
   /** Opens the confirm dialog, then the ad, then banks the reward. */
   openOffer: () => Promise<void>;
-  /** True from the moment the ad is requested until the reward is settled. */
+  /** True while the next ad loads, shows, or settles its reward. */
   busy: boolean;
 } {
   const quota = useAiQuota();
   const { openConfirm } = useDialog();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [adReady, setAdReady] = useState(false);
+  const [preloadCycle, setPreloadCycle] = useState(0);
 
   // Support is checked alongside the quota rather than inside it: the server
   // knows nothing about whether this device can render an ad, and offering one
@@ -42,15 +44,22 @@ export function useRewardedAdOffer(): {
   // detaches the pending load if they navigate away first.
   useEffect(() => {
     if (!canOffer) {
+      setAdReady(false);
       return;
     }
-    return preloadRewardedAd();
-  }, [canOffer]);
+    setAdReady(false);
+    return preloadRewardedAd(() => setAdReady(true));
+  }, [canOffer, preloadCycle]);
 
   const openOffer = useCallback(async () => {
     // Re-checked rather than trusted from render: the dialog is async, and a
     // scheduled refill or a parallel grant can fill the balance mid-flight.
-    if (busy || !canWatchRewardedAd(quota) || !isRewardedAdSupported()) {
+    if (
+      busy ||
+      !adReady ||
+      !canWatchRewardedAd(quota) ||
+      !isRewardedAdSupported()
+    ) {
       return;
     }
 
@@ -66,6 +75,9 @@ export function useRewardedAdOffer(): {
     }
 
     setBusy(true);
+    // A full-screen ad is single-use. Do not let the same loaded instance be
+    // shown again while the next one is being prepared.
+    setAdReady(false);
     try {
       const outcome = await showRewardedAd();
 
@@ -88,8 +100,16 @@ export function useRewardedAdOffer(): {
       );
     } finally {
       setBusy(false);
+      // The SDK requires load → show → next load. This also reloads after an
+      // early dismissal or display failure so the following tap never reuses
+      // the consumed ad instance.
+      setPreloadCycle((current) => current + 1);
     }
-  }, [busy, quota, openConfirm, toast]);
+  }, [adReady, busy, quota, openConfirm, toast]);
 
-  return { canOffer, openOffer, busy };
+  return {
+    canOffer,
+    openOffer,
+    busy: busy || (canOffer && !adReady),
+  };
 }

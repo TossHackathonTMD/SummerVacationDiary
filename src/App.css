@@ -5010,8 +5010,11 @@ html:has(
   margin-bottom: 4px;
   color: var(--summer-coral-dark);
   font-size: 12px;
+  font-synthesis: weight;
   font-weight: 900;
   letter-spacing: 0.09em;
+  -webkit-text-stroke: 0.35px currentcolor;
+  paint-order: stroke fill;
 }
 
 .developer-credits-header .app-modal-title {
@@ -5107,15 +5110,15 @@ html:has(
 }
 
 .developer-credit-badge.is-lead {
-  border-color: rgba(74, 127, 120, 0.4);
-  background: rgba(126, 181, 169, 0.22);
+  border-color: rgba(74, 127, 120, 0.3);
+  background: rgba(126, 181, 169, 0.13);
   color: #527873;
 }
 
 .developer-credit-badge.is-crew {
-  border-color: rgba(74, 127, 120, 0.3);
-  background: rgba(126, 181, 169, 0.13);
-  color: #527873;
+  border-color: rgba(105, 153, 146, 0.2);
+  background: rgba(169, 207, 199, 0.08);
+  color: #698b86;
 }
 
 .developer-credit-github {
@@ -5131,9 +5134,7 @@ html:has(
 .developer-credit-link-icon {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   color: #586f78;
-  font-size: 14px;
 }
 
 .developer-credit-link-icon svg {
@@ -5158,15 +5159,15 @@ html:has(
 }
 
 .theme-winter .developer-credit-badge.is-lead {
-  border-color: rgba(47, 113, 157, 0.34);
-  background: rgba(77, 157, 202, 0.15);
+  border-color: rgba(47, 113, 157, 0.24);
+  background: rgba(77, 157, 202, 0.09);
   color: var(--winter-primary-dark);
 }
 
 .theme-winter .developer-credit-badge.is-crew {
-  border-color: rgba(47, 113, 157, 0.24);
-  background: rgba(77, 157, 202, 0.09);
-  color: var(--winter-primary-dark);
+  border-color: rgba(86, 142, 170, 0.16);
+  background: rgba(132, 182, 202, 0.05);
+  color: #5f8395;
 }
 
 .diary-calendar-month-picker {

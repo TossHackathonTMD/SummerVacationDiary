@@ -155,9 +155,11 @@ export function DeveloperCredits() {
                         @{member.github}
                       </span>
                     </span>
-                    <span className="developer-credit-link-icon">
+                    <span
+                      className="developer-credit-link-icon"
+                      aria-hidden="true"
+                    >
                       <GithubMark />
-                      <span aria-hidden="true">↗</span>
                     </span>
                   </button>
                 </li>
