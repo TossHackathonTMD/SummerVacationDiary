@@ -74,6 +74,26 @@ alter table public.diary_ai_user_credits enable row level security;
 revoke all on table public.diary_ai_user_credits
   from public, anon, authenticated;
 
+-- 한 번 완료된 광고 이벤트가 네트워크 재시도나 중복 callback으로 두 번
+-- 충전되지 않도록 영수증 ID를 기록합니다. 광고 횟수 자체에는 일일 제한이
+-- 없고, 현재 잔액이 2보다 작을 때마다 새로운 영수증으로 1개를 충전합니다.
+create table if not exists public.diary_ai_ad_reward_receipts (
+  user_hash text not null references public.diary_ai_user_credits(user_hash)
+    on delete cascade,
+  reward_id uuid not null,
+  rewarded_at timestamptz not null default now(),
+  primary key (user_hash, reward_id),
+  constraint diary_ai_ad_reward_receipts_hash_check
+    check (user_hash ~ '^[0-9a-f]{64}$')
+);
+
+create index if not exists diary_ai_ad_reward_receipts_rewarded_at_idx
+  on public.diary_ai_ad_reward_receipts (rewarded_at);
+
+alter table public.diary_ai_ad_reward_receipts enable row level security;
+revoke all on table public.diary_ai_ad_reward_receipts
+  from public, anon, authenticated;
+
 -- Edge Function에서 만든 SHA-256 hex만 DB 식별자로 받습니다.
 create or replace function private.is_sha256_hex(p_value text)
 returns boolean
@@ -757,6 +777,91 @@ begin
 end;
 $$;
 
+-- 광고를 끝까지 본 사용자에게 1개를 충전합니다. 잔액은 항상 2 이하이고,
+-- 서로 다른 광고는 반복해서 충전할 수 있습니다. 같은 reward_id 재전송은
+-- 영수증 primary key로 막아 정확히 한 번만 반영합니다.
+create or replace function public.grant_diary_ai_ad_reward_v2(
+  p_user_hash text,
+  p_ip_hash text,
+  p_short_window_start timestamptz,
+  p_day_window_start timestamptz,
+  p_user_credit_capacity integer,
+  p_reward_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private
+as $$
+declare
+  v_decision text;
+  v_receipt_inserted integer;
+  v_user_remaining integer;
+  v_ip_short integer;
+  v_ip_day integer;
+  v_service_sketch integer;
+  v_service_analyze integer;
+begin
+  if not private.is_sha256_hex(p_user_hash)
+     or not private.is_sha256_hex(p_ip_hash)
+     or p_short_window_start is null
+     or p_day_window_start is null
+     or p_day_window_start <> date_trunc('day', p_day_window_start, 'UTC')
+     or p_user_credit_capacity <> 2
+     or p_reward_id is null then
+    raise exception using errcode = '22023', message = 'invalid ad reward arguments';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('diary-ai-quota:' || p_day_window_start::text, 0)
+  );
+
+  v_user_remaining := private.refresh_diary_user_credit(
+    p_user_hash, p_day_window_start, p_user_credit_capacity
+  );
+
+  insert into public.diary_ai_ad_reward_receipts (user_hash, reward_id)
+  values (p_user_hash, p_reward_id)
+  on conflict (user_hash, reward_id) do nothing;
+  get diagnostics v_receipt_inserted = row_count;
+
+  if v_receipt_inserted = 0 then
+    v_decision := 'duplicate';
+  elsif v_user_remaining >= p_user_credit_capacity then
+    v_decision := 'already-full';
+  else
+    update public.diary_ai_user_credits
+    set balance = least(p_user_credit_capacity, balance + 1),
+        updated_at = clock_timestamp()
+    where user_hash = p_user_hash
+    returning balance into v_user_remaining;
+    v_decision := 'granted';
+  end if;
+
+  v_ip_short := private.read_diary_quota_counter(
+    'ip', p_ip_hash, 'all', 'short', p_short_window_start
+  );
+  v_ip_day := private.read_diary_quota_counter(
+    'ip', p_ip_hash, 'all', 'day', p_day_window_start
+  );
+  v_service_sketch := private.read_diary_quota_counter(
+    'service', 'global', 'sketch', 'day', p_day_window_start
+  );
+  v_service_analyze := private.read_diary_quota_counter(
+    'service', 'global', 'analyze', 'day', p_day_window_start
+  );
+
+  return jsonb_build_object(
+    'decision', v_decision,
+    'userRemaining', v_user_remaining,
+    'ipShort', v_ip_short,
+    'ipDay', v_ip_day,
+    'serviceSketch', v_service_sketch,
+    'serviceAnalyze', v_service_analyze
+  );
+end;
+$$;
+
 -- 오래된 counter 정리용. 자동 실행을 원하면 Supabase Cron에서 이 RPC를
 -- 매일 호출합니다. 앱 요청 경로에서는 실행하지 않습니다.
 create or replace function public.cleanup_diary_ai_rate_limits(
@@ -769,12 +874,17 @@ set search_path = pg_catalog, public
 as $$
 declare
   v_deleted bigint;
+  v_reward_deleted bigint;
 begin
+  delete from public.diary_ai_ad_reward_receipts
+  where rewarded_at < p_before;
+  get diagnostics v_reward_deleted = row_count;
+
   delete from public.diary_ai_rate_limits
   where window_start < p_before;
 
   get diagnostics v_deleted = row_count;
-  return v_deleted;
+  return v_deleted + v_reward_deleted;
 end;
 $$;
 
@@ -1225,6 +1335,9 @@ revoke all on function public.refund_diary_ai_inspection_quota_v2(
 revoke all on function public.read_diary_ai_inspection_quota_v2(
   text, text, timestamptz, timestamptz, integer
 ) from public, anon, authenticated;
+revoke all on function public.grant_diary_ai_ad_reward_v2(
+  text, text, timestamptz, timestamptz, integer, uuid
+) from public, anon, authenticated;
 revoke all on function public.cleanup_diary_ai_rate_limits(timestamptz)
   from public, anon, authenticated;
 revoke all on function public.record_diary_app_visit(text)
@@ -1256,6 +1369,9 @@ grant execute on function public.refund_diary_ai_inspection_quota_v2(
 ) to service_role;
 grant execute on function public.read_diary_ai_inspection_quota_v2(
   text, text, timestamptz, timestamptz, integer
+) to service_role;
+grant execute on function public.grant_diary_ai_ad_reward_v2(
+  text, text, timestamptz, timestamptz, integer, uuid
 ) to service_role;
 grant execute on function public.cleanup_diary_ai_rate_limits(timestamptz)
   to service_role;

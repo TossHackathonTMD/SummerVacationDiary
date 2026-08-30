@@ -16,14 +16,8 @@ import { DiaryButton } from "../components/DiaryButton";
 /**
  * The whole "watch an ad for one more diary" flow behind a single hook.
  *
- * Both entry points — the popup that appears on returning to the photo step and
- * the button that reopens it — run this same code, so they cannot drift on when
- * the offer is valid or what happens after the ad. `canOffer` is the one
- * predicate they share.
- *
- * The offer disappears on its own once the bonus is spent: `useAiQuota`
- * re-renders from the snapshot `grantAiQuotaAdReward` brings back, so this hook
- * keeps no state about whether the reward was already taken.
+ * The compact CTA is the only entry point. It disappears whenever the balance
+ * reaches two and returns after a credit is spent.
  */
 export function useRewardedAdOffer(): {
   /** True only when watching an ad would actually add a request right now. */
@@ -54,21 +48,17 @@ export function useRewardedAdOffer(): {
   }, [canOffer]);
 
   const openOffer = useCallback(async () => {
-    // Re-checked rather than trusted from render: the dialog is async, and the
-    // daily reset or a parallel grant can invalidate the offer mid-flight.
+    // Re-checked rather than trusted from render: the dialog is async, and a
+    // scheduled refill or a parallel grant can fill the balance mid-flight.
     if (busy || !canWatchRewardedAd(quota) || !isRewardedAdSupported()) {
       return;
     }
 
     const accepted = await openConfirm({
-      title: "광고보고 AI 일기를 한 번 더 써봐요!",
-      description: "광고를 끝까지 보면 오늘 AI 일기 1회가 추가돼요.",
-      // '써볼래요' takes the confirm slot because it is the action this dialog
-      // exists to offer; declining costs nothing and stays secondary.
-      // No `placement="dialog"` on either: that variant stretches a single
-      // alert button edge to edge, which breaks a two-button row.
-      confirmButton: <DiaryButton>써볼래요</DiaryButton>,
-      cancelButton: <DiaryButton tone="secondary">괜찮아요</DiaryButton>,
+      title: "AI 검사 기회를 충전할까요?",
+      description: "광고를 끝까지 보면 AI 검사 기회 1개가 충전돼요.",
+      confirmButton: <DiaryButton>광고 보기</DiaryButton>,
+      cancelButton: <DiaryButton tone="secondary">다음에</DiaryButton>,
     });
 
     if (!accepted) {
@@ -80,10 +70,10 @@ export function useRewardedAdOffer(): {
       const outcome = await showRewardedAd();
 
       if (outcome === "rewarded") {
-        const stored = await grantAiQuotaAdReward();
+        const stored = await grantAiQuotaAdReward(crypto.randomUUID());
         toast.openToast(
           stored
-            ? "AI 일기 1회가 추가됐어요."
+            ? "AI 검사 기회 1개가 충전됐어요."
             : "보상을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.",
         );
         return;

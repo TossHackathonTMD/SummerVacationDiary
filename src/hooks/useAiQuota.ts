@@ -40,7 +40,7 @@ export type AiQuotaView =
       nextRefillAt: string;
       /** Server-side test mode bypasses counters but remains visible in the UI. */
       testMode: boolean;
-      /** False once today's one rewarded-ad bonus has already been claimed. */
+      /** True while a rewarded ad can still add one credit without exceeding capacity. */
       adRewardAvailable: boolean;
     };
 
@@ -83,22 +83,25 @@ export async function refreshAiQuota(): Promise<void> {
 }
 
 /**
- * Banks today's rewarded-ad bonus on the server.
+ * Adds one rewarded-ad credit on the server.
  *
  * Nothing is returned because nothing needs to be: `invokeDiaryAi` records the
  * snapshot carried by the response, so the counter and every gate derived from
  * it re-render on their own. Resolves to whether the call reached the server,
  * which is only used to decide whether to apologise to the user.
  *
- * Safe to call more than once — the server caps the bonus at one per day and
- * treats repeats as a no-op that still returns the current numbers.
+ * `rewardId` makes a duplicated completion callback idempotent. A different
+ * completed ad can add another credit later whenever the balance is below 2.
  */
-export async function grantAiQuotaAdReward(): Promise<boolean> {
+export async function grantAiQuotaAdReward(rewardId: string): Promise<boolean> {
   if (!isSupabaseConfigured || isAiTestMode) {
     return false;
   }
   try {
-    await invokeDiaryAi({ action: "grant-ad-reward" }, QUOTA_STATUS_TIMEOUT_MS);
+    await invokeDiaryAi(
+      { action: "grant-ad-reward", rewardId },
+      QUOTA_STATUS_TIMEOUT_MS,
+    );
     return true;
   } catch {
     return false;
@@ -156,11 +159,8 @@ export function useAiQuota(): AiQuotaView {
 }
 
 /**
- * True when watching a rewarded ad would actually change something: the budget
- * is known and spent, today's bonus is still unclaimed, and nothing global
- * (region, test mode) makes the counter moot. Every ad entry point — the popup
- * and the button that reopens it — is gated on this one predicate so they can
- * never disagree about whether an ad is worth offering.
+ * True when a completed rewarded ad can add one credit. Users may top up from
+ * either 0 or 1, but the action disappears once the two-credit capacity is full.
  */
 export function canWatchRewardedAd(view: AiQuotaView): boolean {
   return (
@@ -168,7 +168,7 @@ export function canWatchRewardedAd(view: AiQuotaView): boolean {
     !view.testMode &&
     view.region.allowed &&
     view.adRewardAvailable &&
-    !view.completion.available
+    view.completion.remaining < view.completion.limit
   );
 }
 

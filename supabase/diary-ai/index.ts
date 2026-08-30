@@ -224,6 +224,8 @@ interface QuotaSnapshot {
   region: QuotaRegion;
   /** Lets the client hide quota UI while the server deliberately bypasses it. */
   testMode: boolean;
+  /** True while one completed rewarded ad can add a credit below capacity. */
+  adRewardAvailable: boolean;
 }
 
 // Raw counters as the database returns them.
@@ -382,6 +384,7 @@ function buildSnapshot(
     blocked: blockedReason(counts, decision),
     region,
     testMode: false,
+    adRewardAvailable: counts.userRemaining < USAGE_LIMITS.userCreditCapacity,
   };
 }
 
@@ -399,6 +402,7 @@ function testModeSnapshot(request: Request): QuotaSnapshot {
     blocked: null,
     region: requestRegion(request),
     testMode: true,
+    adRewardAvailable: false,
   };
 }
 
@@ -544,6 +548,40 @@ async function readQuota(
     log.error(`quota read failed — ${error?.message ?? "invalid result"}`);
     throw new FunctionError("rate-limit-unavailable", 503);
   }
+  return buildSnapshot(counts, dayWindowStart, requestRegion(request));
+}
+
+/** Adds exactly one credit for one completed rewarded-ad event. */
+async function grantAdReward(
+  request: Request,
+  rewardId: string,
+  log: RequestLog,
+): Promise<QuotaSnapshot> {
+  const { userHash, ipHash } = await hashIdentifiers(request);
+  const { shortWindowStart, dayWindowStart } = windowStarts();
+
+  const { data, error } = await adminClient().rpc(
+    "grant_diary_ai_ad_reward_v2",
+    {
+      p_user_hash: userHash,
+      p_ip_hash: ipHash,
+      p_short_window_start: shortWindowStart,
+      p_day_window_start: dayWindowStart,
+      p_user_credit_capacity: USAGE_LIMITS.userCreditCapacity,
+      p_reward_id: rewardId,
+    },
+  );
+
+  const counts = parseCounts(data);
+  const decision = (data as { decision?: unknown } | null)?.decision;
+  if (error || counts === null || typeof decision !== "string") {
+    log.error(`ad reward failed — ${error?.message ?? "invalid result"}`);
+    throw new FunctionError("rate-limit-unavailable", 503);
+  }
+
+  log.debug(
+    `ad reward ${decision} — user remaining ${counts.userRemaining}/${USAGE_LIMITS.userCreditCapacity}`,
+  );
   return buildSnapshot(counts, dayWindowStart, requestRegion(request));
 }
 
@@ -1330,6 +1368,30 @@ Deno.serve(async (request) => {
       );
       const quota = await readQuota(request, log);
       log.debug(`quota-status ok — all ${quota.all.used}/${quota.all.limit}`);
+      return responseJson({ quota });
+    }
+    if (body?.action === "grant-ad-reward") {
+      if (QUOTA_TEST_MODE) {
+        log.info("grant-ad-reward ok — test mode (not counted)");
+        return responseJson({ quota: testModeSnapshot(request) });
+      }
+      enforceStatusLimit(
+        requireString(request.headers.get("x-diary-client-id"), "client-id"),
+      );
+      // PR #184 clients did not send a reward id. Keep them working during the
+      // rollout; current clients send a UUID so duplicate callbacks are a no-op.
+      const rewardId =
+        body.rewardId === undefined
+          ? crypto.randomUUID()
+          : requireString(body.rewardId, "reward-id");
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          rewardId,
+        )
+      ) {
+        throw new FunctionError("invalid-reward-id", 400);
+      }
+      const quota = await grantAdReward(request, rewardId, log);
       return responseJson({ quota });
     }
     if (isProgressAction(body?.action)) {

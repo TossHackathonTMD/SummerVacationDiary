@@ -39,11 +39,7 @@ export interface QuotaSnapshot {
   region: QuotaRegion;
   /** True only when the Edge Function's private test-mode Secret is enabled. */
   testMode: boolean;
-  /**
-   * False once today's rewarded-ad bonus has been claimed. `all.limit` cannot
-   * carry this on its own — a limit of 3 looks identical whether the bonus is
-   * already spent or still on offer.
-   */
+  /** True when one completed rewarded ad can add a credit without exceeding 2. */
   adRewardAvailable: boolean;
 }
 
@@ -175,9 +171,8 @@ export function parseQuotaSnapshot(body: unknown): QuotaSnapshot | null {
     blocked: blocked as QuotaBlockedReason | null,
     region: parseRegion(record.region),
     testMode: record.testMode === true,
-    // Same leniency as parseRegion: a function deployed before the ad reward
-    // omits this field, and defaulting to `true` there would offer a bonus the
-    // server cannot grant. Absent therefore means "no bonus on offer".
+    // An older Edge Function cannot grant the rechargeable reward, so an
+    // absent field safely hides the action until the matching server is live.
     adRewardAvailable: record.adRewardAvailable === true,
   };
 }
