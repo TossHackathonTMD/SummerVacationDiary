@@ -4,15 +4,15 @@
 
 ## 요구 환경
 
-| 항목          | 요구사항                             | 근거                               |
-| ------------- | ------------------------------------ | ---------------------------------- |
-| Node.js       | `^18.0.0`, `^20.0.0` 또는 `>=22.0.0` | 설치된 Vite 6.4.3의 `engines.node` |
-| 패키지 매니저 | npm                                  | `package-lock.json` lockfile v3    |
-| 기본 개발 OS  | macOS                                | 저장소 작업 지침                   |
-| 브라우저 실행 | 최신 Canvas·Web Crypto 지원 브라우저 | 이미지 처리와 익명 ID 생성 코드    |
-| 샌드박스 실행 | Toss 샌드박스 앱과 콘솔 등록 앱      | `granite dev` 흐름                 |
+| 항목          | 요구사항                             | 근거                                         |
+| ------------- | ------------------------------------ | -------------------------------------------- |
+| Node.js       | `>=24`                               | AIT Devtools 3.1.1의 `engines.node`          |
+| 패키지 매니저 | npm                                  | `package-lock.json` lockfile v3              |
+| 기본 개발 OS  | macOS                                | 저장소 작업 지침                             |
+| 브라우저 실행 | 최신 Canvas·Web Crypto 지원 브라우저 | 이미지 처리, 익명 ID와 AIT Devtools          |
+| 실기기 확인   | Apps in Toss 콘솔 QR 테스트          | SDK 3.x는 샌드박스 개발 서버를 사용하지 않음 |
 
-저장소는 Node 버전을 `.nvmrc`, `.node-version`, `package.json#engines`로 고정하지 않습니다. 위 범위는 직접 의존하는 Vite의 지원 범위입니다.
+`package.json#engines`도 Node 24 이상을 요구합니다.
 
 ## 설치
 
@@ -24,13 +24,13 @@ npm ci
 
 `package-lock.json`과 정확히 맞춘 설치에는 `npm ci`를 사용합니다. 의존성을 의도적으로 갱신할 때만 `npm install`과 lockfile 변경을 함께 검토합니다.
 
-## 가장 단순한 실행: 브라우저 체험 모드
+## 로컬 브라우저 실행
 
 ```bash
-npm run dev:web
+npm run dev
 ```
 
-`http://localhost:5173`을 엽니다.
+`http://localhost:5173`을 엽니다. SDK 3.x용 AIT Devtools가 SDK 브리지를 mock하고 화면 우측 하단에 테스트 패널을 표시합니다.
 
 - Supabase 설정 없음: 외부로 사진·일기를 보내지 않음
 - `VITE_AI_TEST_MODE` 미설정: 로컬 연필 필터 + mock 분석
@@ -55,7 +55,6 @@ VITE_AI_TEST_MODE=true
 | `VITE_SUPABASE_URL`             | 빈 값                               | Function base URL            |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | 빈 값                               | `apikey` header              |
 | `VITE_AI_TEST_MODE`             | 코드 기본 `false`, 예시 파일 `true` | `true`면 그림 생성 요청 생략 |
-| `AIT_DEV_HOST`                  | LAN IPv4 자동 탐색 후 `localhost`   | 샌드박스가 접속할 개발 host  |
 | `VITE_AD_PLACEHOLDER`           | 빈 값                               | `true`면 배너 광고 자리 표시 |
 | `VITE_USE_TEST_ADS`             | 빈 값                               | `true`면 테스트 광고 ID 사용 |
 
@@ -122,41 +121,14 @@ VITE_AI_TEST_MODE=false
 
 환경 변수를 바꾼 뒤에는 Vite를 재시작합니다.
 
-## Apps in Toss 샌드박스 실행
+## Apps in Toss 실기기 확인
 
 ```bash
-npm run dev
+npm run build:test
+npm run deploy
 ```
 
-이 명령은 `granite dev`를 실행합니다.
-
-- Vite 개발 서버: `5173`
-- 샌드박스 bridge: `8081`
-- Vite bind: `0.0.0.0`
-- 진입 deep link: `intoss://summer-vacation-diary`
-
-샌드박스 앱에서 위 deep link를 엽니다. 콘솔에 같은 `appName`이 등록되어 있고 Toss 비즈니스 로그인이 가능한 환경이 필요합니다.
-
-### Android 에뮬레이터
-
-```bash
-adb reverse tcp:8081 tcp:8081
-adb reverse tcp:5173 tcp:5173
-```
-
-### iOS 시뮬레이터
-
-시뮬레이터는 Mac의 localhost에 직접 접근할 수 있으므로 기본 host로 시도합니다.
-
-### iOS·Android 실기기 또는 VPN
-
-자동 선택한 LAN IP가 맞지 않으면 Mac의 실제 LAN IP를 지정합니다.
-
-```bash
-AIT_DEV_HOST=192.168.0.10 npm run dev
-```
-
-`192.168.0.10`은 예시입니다. Mac과 기기가 같은 네트워크에서 접근 가능한 실제 주소로 바꿉니다.
+SDK 3.x에서는 `granite dev`와 샌드박스 bridge를 사용하지 않습니다. 광고가 포함된 QR 테스트는 반드시 `npm run build:test`의 테스트 광고 ID 번들로 진행합니다. 검증이 끝나면 `npm run build`로 라이브 광고 ID가 포함된 심사·출시 번들을 다시 생성합니다. SDK 3.x 번들을 출시한 뒤에는 SDK 2.x로 롤백할 수 없으므로 출시 전에 AIT Devtools와 QR 테스트를 모두 완료합니다.
 
 ## 품질 확인
 
@@ -174,11 +146,11 @@ npm run build
 | --------------------------------- | ------------------------------------------------------------------- |
 | 항상 체험 모드                    | 두 `VITE_SUPABASE_*` 값이 모두 채워졌는지, Vite를 재시작했는지      |
 | 그림 생성이 호출되지 않음         | `VITE_AI_TEST_MODE`가 `true`인지                                    |
-| 샌드박스가 개발 서버를 찾지 못함  | 8081·5173 reverse 또는 `AIT_DEV_HOST`                               |
-| 저장이 브라우저 다운로드로 동작   | Toss/샌드박스 운영 환경이 아니면 정상 fallback                      |
-| 배너 광고가 보이지 않음           | 브라우저·샌드박스는 인앱 광고 미지원. `VITE_AD_PLACEHOLDER=true` 사용 |
+| AIT Devtools가 표시되지 않음      | Node 24 이상인지, `npm run dev`로 개발 서버를 실행했는지            |
+| 저장이 브라우저 다운로드로 동작   | Toss 운영 환경이 아니면 정상 fallback                               |
+| 배너 광고가 보이지 않음           | 브라우저에서는 `VITE_AD_PLACEHOLDER=true`로 레이아웃 확인           |
 | 일기 달력 기록이 다른 환경에 없음 | 브라우저 origin과 Toss `Storage`는 서로 동기화되지 않는 것이 정상   |
-| 네 번째 일기가 보관되지 않음      | 같은 날짜에는 서로 다른 완성 일기를 최대 3개까지 보관               |
+| 세 번째 일기가 보관되지 않음      | 같은 날짜에는 서로 다른 완성 일기를 최대 2개까지 보관               |
 | 이전 일기가 시작 시 복원되지 않음 | 현재 `App.tsx`가 `restoreOnStart: false`로 의도적으로 새 draft 사용 |
 
 ## 기능별 로컬 확인 순서
@@ -186,12 +158,12 @@ npm run build
 1. 사진 동의 → 세로·가로 사진 선택 → 3:2 이동·확대·90° 회전 자르기
 2. 제목·날씨·낮/밤 배경·본문 입력과 오늘 날짜 자동 표시 확인
 3. `검사 받기` 후 그림·첨삭 미리보기 확인
-4. `일기 완성하기` 후 JPEG 자동 보관, 오늘의 도장 적립과 `일기와 오늘의 도장을 저장했어요! (현재 개수/3)` 토스트 확인
+4. `일기 완성하기` 후 JPEG 자동 보관, 오늘의 도장 적립과 `일기와 오늘의 도장을 저장했어요! (현재 개수/2)` 토스트 확인
 5. 저장 일기 상세의 `저장 및 공유` 모달에서 다운로드와 앱 링크 공유 확인
 6. 업로드 화면의 `일기장 보기`에서 해당 날짜 도장 확인
 7. 같은 사진·본문의 제목·날씨 변경 시 기존 기록 교체, 사진 또는 본문 수정 후 저장 시 별도 기록 유지, `저장 및 공유`와 삭제 확인
 8. 업로드의 오늘 도장·연속 기록, 달력의 연속·누적 기록, 특별 마일스톤 모달 확인
-9. 같은 날 여러 일기는 화살표로만 이동하고, 작성 CTA와 뒤로가기가 입력 변경·진입 단계에 맞게 동작하는지 확인
+9. 같은 날 여러 일기는 화살표와 그림 영역의 좌우 스와이프로만 순환하고, 세로 제스처는 무시되며 상세 뒤쪽 달력이 스크롤되지 않는지 확인
 
 ## 관련 문서
 

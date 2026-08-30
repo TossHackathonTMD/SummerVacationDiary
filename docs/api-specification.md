@@ -4,10 +4,10 @@
 
 ## 문서 범위
 
-아래 명세는 클라이언트가 실제로 호출하고 검증하는 계약, 저장소의 `supabase/diary-ai/index.ts`, `supabase/sql/001_app_database.sql`을 기준으로 합니다. 운영 배포본과 저장소 source의 일치 여부는 배포 환경에서 확인해야 합니다.
+아래 명세는 클라이언트가 실제로 호출하고 검증하는 계약, 저장소의 `supabase/diary-ai/index.ts`, `supabase/sql/001_app_database.sql`을 기준으로 합니다. 2026-08-30 운영 Edge Function v136과 DB v2 RPC가 이 계약과 일치함을 확인했습니다.
 
-- **확인된 범위:** method·CORS, action별 입력 검증, OpenAI endpoint와 기본 model, 사용량 제한값, 차감·환불 분기, 응답·오류 계약
-- **확인 필요:** 운영 배포 version, secret 값, 로그·DB 보존 작업의 실제 schedule
+- **확인된 범위:** method·CORS, action별 입력 검증, OpenAI endpoint와 기본 model, 사용량 제한값, 차감·환불 분기, 응답·오류 계약, 운영 v136 source 일치와 quota·광고 RPC smoke test
+- **확인 필요:** secret 값, 로그·DB 보존 작업의 실제 schedule, 이후 배포본의 지속적인 일치 여부
 - **근거:** `src/services/supabaseEdge.ts`, `src/services/diaryProgress.ts`, `src/services/diaryAnalysis.ts`, `src/services/styleTransfer.ts`, `src/services/aiQuotaStore.ts`, `src/hooks/useAiQuota.ts`, `supabase/diary-ai/index.ts`, `supabase/sql/001_app_database.sql`
 
 이 API는 이 앱의 AI·사용량·연속 기록 외부 경계입니다. 완성 일기의 사진·본문·JPEG 저장·조회·삭제는 기기 저장소에서만 처리하고, 서버에는 익명 hash 기반 활동일만 저장합니다.
@@ -40,33 +40,37 @@
   "quota": {
     "all": {
       "used": 0,
-      "limit": 3,
-      "remaining": 3
+      "limit": 2,
+      "remaining": 2
     },
-    "resetAt": "2026-07-29T00:00:00.000Z",
+    "nextRefillAt": "2026-08-31T00:00:00.000Z",
+    "resetAt": "2026-08-31T00:00:00.000Z",
     "blocked": null,
     "region": {
       "allowed": true,
       "country": "KR"
     },
-    "testMode": false
+    "testMode": false,
+    "adRewardAvailable": false
   }
 }
 ```
 
-| 필드             | 타입·제약                                                   |
-| ---------------- | ----------------------------------------------------------- |
-| `all`            | 필수 통합 AI 검사 카운터                                    |
-| `resetAt`        | 파싱 가능한 ISO date string                                 |
-| `blocked`        | `null`, `device`, `ip-burst`, `ip-daily`, `service` 중 하나 |
-| `region.allowed` | boolean. 누락 시 클라이언트는 `true`로 호환 처리            |
-| `region.country` | ISO 3166-1 alpha-2 string 또는 `null`로 기대                |
-| `testMode`       | `true`일 때만 true, 누락 시 false                           |
+| 필드                | 타입·제약                                                   |
+| ------------------- | ----------------------------------------------------------- |
+| `all`               | 필수 통합 AI 검사 카운터, `limit`은 2                       |
+| `nextRefillAt`      | 다음 1개 충전 시각인 ISO date string                        |
+| `resetAt`           | 이전 클라이언트 호환 필드, `nextRefillAt`과 같은 값         |
+| `blocked`           | `null`, `device`, `ip-burst`, `ip-daily`, `service` 중 하나 |
+| `region.allowed`    | boolean. 누락 시 클라이언트는 `true`로 호환 처리            |
+| `region.country`    | ISO 3166-1 alpha-2 string 또는 `null`로 기대                |
+| `testMode`          | `true`일 때만 true, 누락 시 false                           |
+| `adRewardAvailable` | 잔여량이 2개 미만이라 광고 1회로 1개를 추가할 수 있는지     |
 
 클라이언트는 `quota.all`만 통합 `AI 검사 기회`의 권위값으로 사용합니다.
-Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, 사용자 `all`과 IP counter를 요청당 한 번 예약하는 `consume_diary_ai_inspection_quota` RPC를 호출합니다. 서비스 counter는 실제 요청한 sketch·analyze 작업별로 전달하며, 저장소 SQL은 advisory transaction lock과 upsert로 같은 식별자의 동시 차감을 직렬화합니다.
+Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, 사용자 기회와 IP counter를 요청당 한 번 예약하는 `consume_diary_ai_inspection_quota_v2` RPC를 호출합니다. 서비스 counter는 실제 요청한 sketch·analyze 작업별로 전달하며, 저장소 SQL은 advisory transaction lock과 사용자 행 잠금으로 같은 식별자의 동시 차감을 직렬화합니다.
 
-일일 window는 매일 `00:00 UTC`, 한국 시간 `09:00`에 초기화됩니다. `DIARY_AI_TEST_MODE=true`인 서버 테스트 모드는 DB를 읽거나 차감하지 않고 `testMode: true`, limit `0`인 snapshot을 반환합니다.
+사용자 기회는 최초 2개이며 매일 `00:00 UTC`, 한국 시간 `09:00`에 1개를 충전하고 최대 2개까지만 보관합니다. IP·서비스 일일 window는 같은 시각에 전체 초기화됩니다. `DIARY_AI_TEST_MODE=true`인 서버 테스트 모드는 DB를 읽거나 차감하지 않고 `testMode: true`, limit `0`인 snapshot을 반환합니다.
 
 ## A-01 사용량 조회
 
@@ -78,7 +82,7 @@ Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, �
 }
 ```
 
-- **목적:** 작업을 차감하지 않고 통합 AI 검사 사용량과 지역 상태를 조회
+- **목적:** 경과한 충전을 반영하되 작업은 차감하지 않고 통합 AI 검사 잔여량과 지역 상태를 조회
 - **timeout:** 10초
 - **Path·Query parameter:** 없음
 - **권한:** 공통 publishable key와 익명 식별 header
@@ -96,7 +100,23 @@ Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, �
 - **관련 기능:** F-01, F-10
 - **구현 파일:** `src/hooks/useAiQuota.ts`, `src/services/supabaseEdge.ts`
 
-## A-02 통합 AI 검사
+## A-02 리워드 광고 충전
+
+```json
+{
+  "action": "grant-ad-reward",
+  "rewardId": "b5b540e8-9992-4ec5-8a92-06b7c7f2b7d6"
+}
+```
+
+- 광고 SDK의 `userEarnedReward` 이후에만 호출합니다.
+- 현재 잔여량이 0개 또는 1개이면 1개를 추가하고 2개를 넘기지 않습니다.
+- 일일 광고 횟수 제한은 없으며, 충전한 기회를 사용하면 새 광고로 다시 충전할 수 있습니다.
+- `(user_hash, rewardId)`가 같으면 중복 callback으로 보고 잔여량을 다시 올리지 않습니다.
+- PR #184 클라이언트 호환을 위해 `rewardId`가 없는 요청은 전환 기간에 Edge Function이 UUID를 생성합니다.
+- 응답은 갱신된 공통 `quota` 객체입니다.
+
+## A-03 통합 AI 검사
 
 ### 요청
 
@@ -127,7 +147,7 @@ Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, �
 - **Path·Query parameter:** 없음
 - **권한:** 공통 publishable key와 익명 식별 header
 - **서버 validation:** `inspect` action과 실행 flag를 먼저 검사합니다. 분석은 object 입력과 비어 있지 않은 `content`, 그림은 Base64 data URL 문법과 디코딩 가능 여부를 검사합니다. 서버 코드에는 별도 MIME allowlist·byte 상한이 없으므로 클라이언트의 10MB·이미지 규칙과 동일한 서버 방어로 간주하면 안 됩니다.
-- **rate limit:** 사용자 통합 3회/UTC day, IP 20회/10분, IP 100회/UTC day. 서비스 한도는 sketch 150회/UTC day, analyze 250회/UTC day
+- **rate limit:** 사용자 기회 최대 2개·매일 1개 충전, IP 20회/10분, IP 100회/UTC day. 서비스 한도는 sketch 150회/UTC day, analyze 250회/UTC day
 - **지역 제한:** `cf-ipcountry` → `x-country` → `x-vercel-ip-country` 순으로 국가를 읽고, 확인된 국가가 `KR`이 아니면 예약 전에 `403 region-blocked`. 국가가 없거나 `XX`, `T1`이면 unknown으로 보고 허용
 
 ### 성공 응답
@@ -218,11 +238,11 @@ rate-limit-unavailable
 - **관련 기능:** F-05, F-10
 - **구현 파일:** `src/services/styleTransfer.ts`, `src/services/supabaseEdge.ts`, `src/services/sketchLedger.ts`
 
-## A-03 일기 분석 결과
+## A-04 일기 분석 결과
 
 ### 통합 요청의 분석 입력
 
-분석 입력은 A-02의 `inspect` 요청 안에 포함되며 `runAnalyze=true`일 때만
+분석 입력은 A-03의 `inspect` 요청 안에 포함되며 `runAnalyze=true`일 때만
 전송됩니다. 결과는 최상위 `analysis` 객체로 반환됩니다.
 
 제목·날짜·날씨·낮/밤 배경은 완성 이미지와 화면 표현에만 사용하며 분석 API에는 전송하지 않습니다.
@@ -230,7 +250,7 @@ rate-limit-unavailable
 - **timeout:** 통합 요청 기준 150초
 - **Path·Query parameter:** 없음
 - **권한:** 공통 publishable key와 익명 식별 header
-- **서버 validation·rate limit:** A-02의 통합 요청 정책과 동일
+- **서버 validation·rate limit:** A-03의 통합 요청 정책과 동일
 
 ### 성공 응답
 
@@ -262,7 +282,7 @@ interface AnalyzeResponse {
 
 ### 오류 응답
 
-최소 body와 HTTP 매핑 방식은 A-02와 같습니다. 인식하는 분석 server code:
+최소 body와 HTTP 매핑 방식은 A-03과 같습니다. 인식하는 분석 server code:
 
 ```text
 timeout
@@ -283,16 +303,16 @@ invalid-response
 - **관련 기능:** F-06, F-10
 - **구현 파일:** `src/services/diaryAnalysis.ts`, `src/hooks/useDiaryAnalysis.ts`, `src/services/supabaseEdge.ts`
 
-## A-04 연속 기록
+## A-05 연속 기록
 
 네 action은 모두 빈 body의 `action` 값과 공통 `x-diary-client-id` header만 사용합니다. Edge Function이 client ID를 salt 포함 SHA-256으로 변환하고 service role로 아래 RPC를 호출하므로, 브라우저에는 hash나 DB 실행 권한이 노출되지 않습니다.
 
-| action              | RPC                                | 의미                                      |
-| ------------------- | ---------------------------------- | ----------------------------------------- |
-| `progress-visit`    | `record_diary_app_visit`           | 한국 날짜 기준 방문일 기록 후 snapshot 조회 |
-| `progress-status`   | `read_diary_progress`              | 쓰기 없는 현재 snapshot 조회              |
-| `progress-complete` | `record_diary_completion`          | 오늘 작성일을 멱등 기록하고 마일스톤 반환  |
-| `progress-delete`   | `delete_diary_progress`            | 해당 익명 hash의 진행 데이터 삭제          |
+| action              | RPC                       | 의미                                        |
+| ------------------- | ------------------------- | ------------------------------------------- |
+| `progress-visit`    | `record_diary_app_visit`  | 한국 날짜 기준 방문일 기록 후 snapshot 조회 |
+| `progress-status`   | `read_diary_progress`     | 쓰기 없는 현재 snapshot 조회                |
+| `progress-complete` | `record_diary_completion` | 오늘 작성일을 멱등 기록하고 마일스톤 반환   |
+| `progress-delete`   | `delete_diary_progress`   | 해당 익명 hash의 진행 데이터 삭제           |
 
 요청 예시:
 
@@ -313,7 +333,12 @@ invalid-response
     "completedToday": true,
     "newlyCompleted": true,
     "milestones": [
-      { "metric": "streak", "threshold": 5, "tier": "special", "title": "다섯 날의 리듬" }
+      {
+        "metric": "streak",
+        "threshold": 5,
+        "tier": "special",
+        "title": "다섯 날의 리듬"
+      }
     ]
   }
 }

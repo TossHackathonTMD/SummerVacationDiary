@@ -15,7 +15,7 @@
 //   Release build : npm run build
 //
 // Verify a release bundle with:
-//   grep -c "ait-ad-test" dist/web/assets/index-*.js   # must be 0
+//   grep -c "ait-ad-test" dist/assets/index-*.js   # must be 0
 const USE_TEST_ADS = import.meta.env.VITE_USE_TEST_ADS === "true";
 
 // Fixed strings published in the Toss ad docs — shared by every developer, not

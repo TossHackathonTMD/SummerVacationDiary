@@ -40,6 +40,8 @@ export interface PhotoSelection {
 interface PhotoUploadStepProps {
   photoDataUrl: string | null;
   onPhotoChange: (selection: PhotoSelection) => void;
+  /** Handles the root upload screen's native navigation-bar back action. */
+  onRequestExit: () => Promise<void>;
   /** Kept only for the lifetime of the current mini-app execution. */
   hasSessionConsent: boolean;
   onSessionConsent: () => void;
@@ -60,6 +62,7 @@ interface PhotoUploadStepProps {
 export function PhotoUploadStep({
   photoDataUrl,
   onPhotoChange,
+  onRequestExit,
   hasSessionConsent,
   onSessionConsent,
   canRedraw,
@@ -132,6 +135,22 @@ export function PhotoUploadStep({
     });
   }, [consentOpen]);
 
+  useEffect(() => {
+    if (
+      cropSource !== null ||
+      consentOpen ||
+      !("ReactNativeWebView" in window)
+    ) {
+      return;
+    }
+
+    return graniteEvent.addEventListener("backEvent", {
+      onEvent: () => {
+        void onRequestExit();
+      },
+    });
+  }, [consentOpen, cropSource, onRequestExit]);
+
   const closeCrop = () => {
     setCropSource(null);
     window.history.back();
@@ -160,7 +179,7 @@ export function PhotoUploadStep({
       return;
     }
 
-    // Drawing again costs one of only three daily requests, so the choice is
+    // Drawing again costs one of the user's limited credits, so the choice is
     // the user's rather than an automatic substitution — they may well have
     // re-picked this photo precisely to crop it differently.
     // Reuse is the primary button, not redrawing: the confirm slot is the one
@@ -413,9 +432,9 @@ export function PhotoUploadStep({
                   <h3>처리하는 정보</h3>
 
                   <p>
-                    AI 분석에는 선택한 사진과 일기 본문을 사용해요. 제목·날짜·날씨는
-                    완성 이미지 표시에만 사용하며, 사용량 제한을 위해 기기
-                    식별값·IP를 처리해요.
+                    AI 분석에는 선택한 사진과 일기 본문을 사용해요.
+                    제목·날짜·날씨는 완성 이미지 표시에만 사용하며, 사용량
+                    제한을 위해 기기 식별값·IP를 처리해요.
                   </p>
                 </section>
 

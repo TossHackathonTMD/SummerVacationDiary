@@ -4,7 +4,7 @@
 
 ## 범위
 
-이 문서는 저장소의 클라이언트, `supabase/diary-ai` Edge Function과 `supabase/sql/001_app_database.sql`에서 확인한 보안·데이터 흐름을 설명합니다. 운영 배포 일치 여부, secret·schedule과 법적 보존 정책은 `확인 필요`로 구분합니다.
+이 문서는 저장소의 클라이언트, `supabase/diary-ai` Edge Function과 `supabase/sql/001_app_database.sql`에서 확인한 보안·데이터 흐름을 설명합니다. 2026-08-30 운영 Edge Function v136과 DB v2 RPC의 저장소 일치를 확인했으며, secret·schedule과 법적 보존 정책은 `확인 필요`로 구분합니다.
 
 ## 처리 데이터
 
@@ -27,14 +27,15 @@
 
 ## 로컬 저장소
 
-| key                                     | 내용                                                          | 삭제·만료                                                           |
-| --------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `summer-vacation-diary:draft:v2`        | 초안 ID, 사진, 그림, 제목, 본문, 날짜, 날씨, 낮·밤            | OS·사용자가 앱 데이터 삭제 가능                                     |
-| `summer-vacation-diary:client-id:v1`    | 무작위 브라우저 UUID                                          | 자동 만료 없음                                                      |
-| `summer-vacation-diary:quota:v1`        | 사용량, reset, 차단·지역 상태                                 | reset 시각 경과 또는 testMode snapshot이면 삭제                     |
-| `summer-vacation-diary:sketch-cache:v1` | 원본 파일 SHA-256와 변환 그림, 최대 3개                       | 다시 그리기·캐시 교체·앱 데이터 삭제 시 제거 가능                   |
-| `summer-vacation-diary:diary-index:v1`  | 보관 id, 초안 ID, 사진·본문 hash, 날짜, 저장 시각, 제목, 날씨 | `deleteDiary`·같은 AI 입력 재저장 시 해당 항목 제거; 자동 만료 없음 |
-| `summer-vacation-diary:diary:v1:<id>`   | 초안 ID, 사진·본문 hash, 본문, 완성 JPEG, AI 생성 여부        | `deleteDiary`·같은 AI 입력 재저장 시 삭제; 자동 만료 없음           |
+| key                                                 | 내용                                                          | 삭제·만료                                                           |
+| --------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `summer-vacation-diary:draft:v2`                    | 초안 ID, 사진, 그림, 제목, 본문, 날짜, 날씨, 낮·밤            | OS·사용자가 앱 데이터 삭제 가능                                     |
+| `summer-vacation-diary:client-id:v1`                | 무작위 브라우저 UUID                                          | 자동 만료 없음                                                      |
+| `summer-vacation-diary:quota:v2`                    | 잔여량, 다음 충전, 차단·지역 상태                             | 충전 시각 경과 또는 testMode snapshot이면 삭제                      |
+| `summer-vacation-diary:sketch-cache:v1`             | 원본 파일 SHA-256와 변환 그림, 최대 3개                       | 다시 그리기·캐시 교체·앱 데이터 삭제 시 제거 가능                   |
+| `summer-vacation-diary:origin-storage-migration:v1` | SDK 3.x Origin 병합 완료 표시                                 | 앱 데이터 삭제 시 제거                                              |
+| `summer-vacation-diary:diary-index:v1`              | 보관 id, 초안 ID, 사진·본문 hash, 날짜, 저장 시각, 제목, 날씨 | `deleteDiary`·같은 AI 입력 재저장 시 해당 항목 제거; 자동 만료 없음 |
+| `summer-vacation-diary:diary:v1:<id>`               | 초안 ID, 사진·본문 hash, 본문, 완성 JPEG, AI 생성 여부        | `deleteDiary`·같은 AI 입력 재저장 시 삭제; 자동 만료 없음           |
 
 draft는 400ms debounce와 page hide flush로 기록됩니다. 저장 용량이 부족하면 그림과 사진을 제거한 더 작은 draft로 재시도합니다.
 
@@ -42,7 +43,9 @@ draft는 400ms debounce와 page hide flush로 기록됩니다. 저장 용량이 
 
 앱은 시작 시 `restoreOnStart: false`라 이전 draft를 UI에 복원하지 않지만, 저장 key 자체는 앱 데이터가 삭제될 때까지 남아 있을 수 있습니다.
 
-완성 일기는 이미지 없는 index와 JPEG data URL을 포함한 일기별 record로 분리해 저장합니다. 날짜별 최대 3개이며, 같은 초안 ID와 사진·본문 revision hash가 일치할 때만 기존 기록을 교체합니다. 사진 또는 본문이 달라지면 별도 기록으로 남습니다. hash는 중복 판별용이며 원본 사진을 복원하는 용도로 사용하지 않습니다. 자동 만료는 없습니다. 앱 데이터 또는 브라우저 데이터를 지우면 함께 삭제되고, 서버나 다른 기기로 동기화되지 않습니다.
+SDK 3.1.1 시작 시 `Migration.getOriginStorage()`로 이전 `web.tossmini.com`과 현재 `apps.tossmini.com`의 localStorage를 조회합니다. `summer-vacation-diary:` 접두사의 key만 대상으로 하며 현재 Origin에 값이 없을 때만 이전 값을 복사합니다. 현재 값은 항상 우선하고, 조회·쓰기 실패는 앱 실행을 막지 않으며 완료 표시를 남기지 않아 다음 실행에서 다시 시도합니다. 네이티브 `Storage`, IndexedDB와 OPFS는 병합 대상이 아닙니다.
+
+완성 일기는 이미지 없는 index와 JPEG data URL을 포함한 일기별 record로 분리해 저장합니다. 날짜별 최대 2개이며, 같은 초안 ID와 사진·본문 revision hash가 일치할 때만 기존 기록을 교체합니다. 사진 또는 본문이 달라지면 별도 기록으로 남습니다. hash는 중복 판별용이며 원본 사진을 복원하는 용도로 사용하지 않습니다. 자동 만료는 없습니다. 앱 데이터 또는 브라우저 데이터를 지우면 함께 삭제되고, 서버나 다른 기기로 동기화되지 않습니다.
 
 ## 외부 전송
 
@@ -58,7 +61,7 @@ flowchart LR
     Edge -->|salt hash 식별자·counter| DB["Supabase PostgreSQL"]
 ```
 
-클라이언트는 OpenAI를 직접 호출하지 않습니다. 제공된 Edge Function은 분석 시 본문과 선택 사진을 low detail image input으로 Chat Completions에 보내고, 그림 생성 시 사진과 `SKETCH_PROMPT`를 Images Edits에 보냅니다. prompt 파일 내용, OpenAI 측 보존, 운영 배포본과의 일치 여부는 제공 자료만으로 확인할 수 없습니다.
+클라이언트는 OpenAI를 직접 호출하지 않습니다. Edge Function은 분석 시 본문과 선택 사진을 low detail image input으로 Chat Completions에 보내고, 그림 생성 시 사진과 `SKETCH_PROMPT`를 Images Edits에 보냅니다. 배포된 v136의 source와 저장소 prompt 파일 일치는 확인했지만, OpenAI 측 보존 정책과 실제 요청·응답 보존 여부는 별도 운영 확인이 필요합니다.
 
 Supabase가 설정되지 않은 경우 사진·일기 내용은 외부 분석 서버로 전송하지 않고 브라우저 안에서 처리합니다.
 
@@ -94,10 +97,10 @@ Supabase가 설정되지 않은 경우 사진·일기 내용은 외부 분석 �
 - Supabase 요청은 publishable key를 `apikey` header로 사용
 - `Authorization` header 없음
 - `x-diary-client-id`는 rate limit 힌트이며 신원 인증으로 사용할 수 없음
-- Edge Function은 `POST`와 `quota-status`·`inspect`·`progress-*` action, 필수 client ID와 입력 구조를 검증함
-- CORS origin은 `*`; Supabase gateway의 JWT 검증 여부와 publishable key 강제 설정은 배포 구성 확인 필요
+- Edge Function은 `POST`와 `quota-status`·`grant-ad-reward`·`inspect`·`progress-*` action, 필수 client ID와 입력 구조를 검증함
+- CORS origin은 `*`여서 `https://summer-vacation-diary.apps.tossmini.com`과 `https://summer-vacation-diary.private-apps.tossmini.com`을 포함함; 2026-08-30 운영 v136도 같은 source이고 gateway JWT 검증은 비활성화 상태로 확인
 
-Supabase에는 사용량 제한용 `diary_ai_rate_limits`와 익명 진행용 `diary_user_progress`, `diary_activity_days`, 마일스톤 정의용 `diary_milestones`가 있습니다. 모든 public table은 RLS를 켜고 `anon`·`authenticated`의 table 권한을 회수합니다. 브라우저는 table/RPC에 직접 접근하지 않고 Edge Function의 service role 경로만 사용합니다. 사진·제목·본문·완성 JPEG는 진행 테이블에 저장하지 않습니다.
+Supabase에는 사용량 제한용 `diary_ai_rate_limits`, 사용자 잔여량용 `diary_ai_user_credits`, 광고 중복 방지용 `diary_ai_ad_reward_receipts`와 익명 진행용 `diary_user_progress`, `diary_activity_days`, 마일스톤 정의용 `diary_milestones`가 있습니다. 모든 public table은 RLS를 켜고 `anon`·`authenticated`의 table 권한을 회수합니다. 브라우저는 table/RPC에 직접 접근하지 않고 Edge Function의 service role 경로만 사용합니다. 사진·제목·본문·완성 JPEG는 진행 테이블에 저장하지 않습니다.
 
 ## 입력·응답 방어
 
@@ -162,18 +165,16 @@ quota snapshot은 UI 표시와 선차단 용도입니다. 클라이언트는 공
 - 공개 이미지 URL을 만들거나 사진을 업로드하는 공유 서버는 없습니다.
 - 브라우저 Clipboard fallback은 현재 페이지 URL만 복사합니다.
 
-제공된 서버 제한은 사용자 3회/UTC day, IP 20회/10분·100회/UTC day, sketch 150회/UTC day, analyze 250회/UTC day입니다. 확인 가능한 국가가 `KR`이 아니면 차단하고, 국가 header가 없으면 허용합니다. 실패 시 `content-blocked`, `invalid-image`, `invalid-input`, `invalid-content`만 차감을 유지하고 그 밖의 오류는 동일 window RPC로 환불을 시도합니다.
+제공된 서버는 사용자별 AI 검사 기회를 최대 2개 저장하고 매일 09:00 KST에 1개 충전합니다. 잔여량이 2개 미만이면 완료된 리워드 광고마다 1개를 추가하며 일일 횟수 제한은 없습니다. 같은 광고 callback은 `(user_hash, reward_id)` 영수증으로 중복 충전을 막습니다. 광고 SDK가 서버 검증 영수증을 제공하지 않으므로 임의 보상 요청을 완전히 증명할 수는 없고, 잔액 상한과 IP 20회/10분·100회/UTC day, sketch 150회/UTC day, analyze 250회/UTC day 제한을 비용 보호 장치로 유지합니다. 확인 가능한 국가가 `KR`이 아니면 차단하고, 국가 header가 없으면 허용합니다. 실패 시 `content-blocked`, `invalid-image`, `invalid-input`, `invalid-content`만 차감을 유지하고 그 밖의 오류는 사용자 기회와 해당 보호 counter 환불을 시도합니다.
 
 ## 확인이 필요한 서버 항목
 
-- [ ] 저장소 Edge Function·SQL과 실제 배포 version의 일치
 - [ ] 서버 측 요청 body 크기·MIME 상한 추가 여부
-- [ ] prompt 내용과 운영 배포 version의 일치
 - [ ] 사진·본문·응답·로그의 저장 여부와 보존 기간
 - [ ] hash counter 행의 삭제·보존 정책과 salt rotation 절차
 - [ ] rate-limit 정리 RPC의 주기 schedule과 hash 보존 기간
 - [ ] Supabase가 국가 header를 실제로 전달하는지
-- [ ] wildcard CORS와 Supabase gateway JWT 설정
+- [ ] wildcard CORS와 비활성 gateway JWT 설정을 계속 유지할지에 대한 운영 정책
 - [ ] incident 대응·공개 보안 신고 채널
 
 ## 저장소의 보안 운영 상태

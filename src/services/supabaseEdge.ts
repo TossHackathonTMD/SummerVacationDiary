@@ -1,4 +1,4 @@
-import { getAnonymousKey } from "@apps-in-toss/web-framework";
+import { User } from "@apps-in-toss/web-framework";
 
 import { recordQuotaSnapshot } from "./aiQuotaStore";
 
@@ -104,9 +104,9 @@ function createClientId(): string {
  */
 async function getRateLimitClientId(): Promise<string> {
   try {
-    const anonymousKey = await getAnonymousKey();
-    if (typeof anonymousKey === "string" && anonymousKey.trim() !== "") {
-      return `toss:${anonymousKey}`;
+    const { hash } = await User.getAnonymousKey();
+    if (hash.trim() !== "") {
+      return `toss:${hash}`;
     }
   } catch {
     // Expected in a normal browser outside the Toss bridge.

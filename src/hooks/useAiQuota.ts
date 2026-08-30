@@ -9,7 +9,6 @@ import {
   type QuotaRegion,
 } from "../services/aiQuotaStore";
 import {
-  clearSketchLedger,
   getPendingSketchCount,
   getSketchLedgerVersion,
   subscribeSketchLedger,
@@ -38,10 +37,10 @@ export type AiQuotaView =
       completion: QuotaCounterView;
       blocked: QuotaBlockedReason | null;
       region: QuotaRegion;
-      resetAt: string;
+      nextRefillAt: string;
       /** Server-side test mode bypasses counters but remains visible in the UI. */
       testMode: boolean;
-      /** False once today's one rewarded-ad bonus has already been claimed. */
+      /** True while a rewarded ad can still add one credit without exceeding capacity. */
       adRewardAvailable: boolean;
     };
 
@@ -50,7 +49,7 @@ const QUOTA_STATUS_TIMEOUT_MS = 10_000;
 /**
  * Folds the requests this client has already sent into the server's numbers.
  * A drawing takes 30-60 seconds, so without this the counter would still read
- * the old value while three of them are in flight.
+ * the old value while requests are in flight.
  *
  * Clamped at the limit: between the response being recorded and its ticket
  * being settled a few microtasks later, one request is briefly counted twice,
@@ -84,22 +83,25 @@ export async function refreshAiQuota(): Promise<void> {
 }
 
 /**
- * Banks today's rewarded-ad bonus on the server.
+ * Adds one rewarded-ad credit on the server.
  *
  * Nothing is returned because nothing needs to be: `invokeDiaryAi` records the
  * snapshot carried by the response, so the counter and every gate derived from
  * it re-render on their own. Resolves to whether the call reached the server,
  * which is only used to decide whether to apologise to the user.
  *
- * Safe to call more than once — the server caps the bonus at one per day and
- * treats repeats as a no-op that still returns the current numbers.
+ * `rewardId` makes a duplicated completion callback idempotent. A different
+ * completed ad can add another credit later whenever the balance is below 2.
  */
-export async function grantAiQuotaAdReward(): Promise<boolean> {
+export async function grantAiQuotaAdReward(rewardId: string): Promise<boolean> {
   if (!isSupabaseConfigured || isAiTestMode) {
     return false;
   }
   try {
-    await invokeDiaryAi({ action: "grant-ad-reward" }, QUOTA_STATUS_TIMEOUT_MS);
+    await invokeDiaryAi(
+      { action: "grant-ad-reward", rewardId },
+      QUOTA_STATUS_TIMEOUT_MS,
+    );
     return true;
   } catch {
     return false;
@@ -114,25 +116,23 @@ export function useAiQuota(): AiQuotaView {
   useSyncExternalStore(subscribeSketchLedger, getSketchLedgerVersion);
   const pendingSketches = getPendingSketchCount();
 
-  // A session left open across the 09:00 KST reset would otherwise keep showing
-  // yesterday's exhausted counters. The delay is at most 24h, comfortably under
-  // setTimeout's ~24.8 day ceiling.
+  // A session left open across 09:00 KST would otherwise miss its one-credit
+  // refill. Expire the display cache and ask the server to apply the refill;
+  // never assume the balance became full.
   useEffect(() => {
     if (snapshot === null) {
       return;
     }
     const expire = () => {
       expireQuotaSnapshot(Date.now());
-      // Yesterday's tickets stop meaning anything at the same moment; keeping
-      // them would carry a spent count into the new day.
-      clearSketchLedger();
+      void refreshAiQuota();
     };
-    const msUntilReset = Date.parse(snapshot.resetAt) - Date.now();
-    if (msUntilReset <= 0) {
+    const msUntilRefill = Date.parse(snapshot.nextRefillAt) - Date.now();
+    if (msUntilRefill <= 0) {
       expire();
       return;
     }
-    const timer = setTimeout(expire, msUntilReset);
+    const timer = setTimeout(expire, msUntilRefill);
     return () => clearTimeout(timer);
   }, [snapshot]);
 
@@ -151,7 +151,7 @@ export function useAiQuota(): AiQuotaView {
       completion: withPending(snapshot.all, pendingSketches),
       blocked: snapshot.blocked,
       region: snapshot.region,
-      resetAt: snapshot.resetAt,
+      nextRefillAt: snapshot.nextRefillAt,
       testMode: snapshot.testMode,
       adRewardAvailable: snapshot.adRewardAvailable,
     };
@@ -159,11 +159,8 @@ export function useAiQuota(): AiQuotaView {
 }
 
 /**
- * True when watching a rewarded ad would actually change something: the budget
- * is known and spent, today's bonus is still unclaimed, and nothing global
- * (region, test mode) makes the counter moot. Every ad entry point — the popup
- * and the button that reopens it — is gated on this one predicate so they can
- * never disagree about whether an ad is worth offering.
+ * True when a completed rewarded ad can add one credit. Users may top up from
+ * either 0 or 1, but the action disappears once the two-credit capacity is full.
  */
 export function canWatchRewardedAd(view: AiQuotaView): boolean {
   return (
@@ -171,14 +168,14 @@ export function canWatchRewardedAd(view: AiQuotaView): boolean {
     !view.testMode &&
     view.region.allowed &&
     view.adRewardAvailable &&
-    !view.completion.available
+    view.completion.remaining < view.completion.limit
   );
 }
 
 /**
  * True only when the shared inspection budget is known AND spent. Both drawing
- * and analysis use this same gate, so one action cannot continue after the
- * three bundled opportunities are gone.
+ * and analysis use this same gate, so one action cannot continue after all
+ * currently held credits are gone.
  */
 export function isAiQuotaSpent(view: AiQuotaView): boolean {
   return view.mode === "ready" && !view.testMode && !view.completion.available;
@@ -186,8 +183,8 @@ export function isAiQuotaSpent(view: AiQuotaView): boolean {
 
 /**
  * True when the server refuses this caller's country. Unlike the per-action
- * budgets this is global and does not reset overnight, so both operations are
- * gated on it and the wording has to differ from "내일 아침 9시부터".
+ * budgets this is global and does not refill, so both operations are gated on
+ * it and the wording must not promise another credit at 09:00.
  */
 export function isRegionBlocked(view: AiQuotaView): boolean {
   return view.mode === "ready" && !view.region.allowed;

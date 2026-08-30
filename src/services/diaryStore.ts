@@ -43,7 +43,7 @@ import type { WeatherValue } from "../constants/diary";
 
 const INDEX_STORAGE_KEY = "summer-vacation-diary:diary-index:v1";
 const ENTRY_STORAGE_KEY_PREFIX = "summer-vacation-diary:diary:v1:";
-export const MAX_DIARIES_PER_DATE = 3;
+export const MAX_DIARIES_PER_DATE = 2;
 
 function entryStorageKey(id: string): string {
   return `${ENTRY_STORAGE_KEY_PREFIX}${id}`;

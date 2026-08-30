@@ -7,7 +7,7 @@
  * never byte-identical twice and a key built from the cropped JPEG would
  * practically never match. Hashing the source file matches whenever the same
  * photo is picked again, which is the case worth catching — a re-drawn photo
- * costs one of only three daily requests.
+ * costs one of the user's limited credits.
  *
  * Only the sketch is stored, never the photo. The two together would be roughly
  * 700 KB per entry against a ~5 MB origin budget that the diary draft already

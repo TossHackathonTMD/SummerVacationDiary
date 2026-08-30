@@ -59,16 +59,16 @@ flowchart TD
 
 ## 주요 컴포넌트와 책임
 
-| 경계             | 책임                                       | 주요 파일           |
-| ---------------- | ------------------------------------------ | ------------------- |
-| 진입·Provider    | React mount, Strict Mode, TDS provider     | `src/main.tsx`      |
-| 화면 조정        | 온보딩, 제작 단계, 달력, 유효성, 완료 흐름 | `src/App.tsx`       |
-| 화면 컴포넌트    | 사진·작성·미리보기·달력·완성 UI            | `src/components/`   |
-| 도메인 상태      | `DiaryDraft`, 그림·분석·quota 비동기 상태  | `src/hooks/`        |
-| 외부 경계        | Edge Function, Toss 저장·공유, 캐시        | `src/services/`     |
-| 순수 계산·Canvas | 이미지 처리, 레이아웃, 첨삭, JPEG 합성     | `src/utils/`        |
-| 공통 규칙        | 길이, 날씨, 브랜드, 도장                   | `src/constants/`    |
-| 런타임 설정      | 개발 host·port, build command, navigation  | `granite.config.ts` |
+| 경계             | 책임                                       | 주요 파일                |
+| ---------------- | ------------------------------------------ | ------------------------ |
+| 진입·Provider    | React mount, Strict Mode, TDS provider     | `src/main.tsx`           |
+| 화면 조정        | 온보딩, 제작 단계, 달력, 유효성, 완료 흐름 | `src/App.tsx`            |
+| 화면 컴포넌트    | 사진·작성·미리보기·달력·완성 UI            | `src/components/`        |
+| 도메인 상태      | `DiaryDraft`, 그림·분석·quota 비동기 상태  | `src/hooks/`             |
+| 외부 경계        | Edge Function, Toss 저장·공유, 캐시        | `src/services/`          |
+| 순수 계산·Canvas | 이미지 처리, 레이아웃, 첨삭, JPEG 합성     | `src/utils/`             |
+| 공통 규칙        | 길이, 날씨, 브랜드, 도장                   | `src/constants/`         |
+| 런타임 설정      | SDK 3.x bundle, WebView, navigation        | `apps-in-toss.config.ts` |
 
 ## 화면과 상태 흐름
 
@@ -123,8 +123,8 @@ interface DiaryDraft {
 - key 구조: 목록용 `summer-vacation-diary:diary-index:v1`(이미지 없는 요약 배열)과 일기별 `summer-vacation-diary:diary:v1:<id>`. 목록 조회가 이미지 바이트를 읽지 않고, 저장이 기존 일기를 다시 쓰지 않도록 나눴습니다.
 - 일관성: 저장은 항목 → index 순으로 씁니다. 중간에 실패하면 화면에 보이지 않는 항목만 남고, 목록에 있는데 열 수 없는 일기는 생기지 않습니다. index에 남은 끊어진 참조는 `getDiary`가 발견할 때 정리합니다.
 - 정렬은 저장이 아니라 조회 시점에 날짜·저장 시각 내림차순으로 수행합니다.
-- 같은 날짜에는 서로 다른 일기를 최대 3개 저장합니다. `draftId`와 사진·본문 `revisionKey`가 모두 같은 기록만 교체하고, 사진 또는 본문이 달라진 기록은 함께 유지합니다.
-- 달력은 월 단위로 이동하며 기록이 있는 날짜에 도장을 표시합니다. 같은 날 여러 일기는 이전·다음 버튼으로만 넘깁니다.
+- 같은 날짜에는 서로 다른 일기를 최대 2개 저장합니다. `draftId`와 사진·본문 `revisionKey`가 모두 같은 기록만 교체하고, 사진 또는 본문이 달라진 기록은 함께 유지합니다.
+- 달력은 월 단위로 이동하며 기록이 있는 날짜에 도장을 표시합니다. 같은 날 여러 일기는 이전·다음 버튼 또는 그림 영역의 좌우 스와이프로 순환하며 다른 날짜로 넘어가지 않습니다.
 
 ## 사진 처리 흐름
 
@@ -181,7 +181,7 @@ sequenceDiagram
 `all` 사용량에 선반영하고, 통합 잔여량이 0이면 두 작업을 함께 선차단합니다.
 
 클라이언트는 필요한 그림·분석 작업을 하나의 `inspect` 요청으로 모읍니다.
-Edge Function은 사용자 `all`과 IP를 요청당 한 번 예약하고 실제 실행할 sketch·analyze service counter만 증가시키는 `consume_diary_ai_inspection_quota` RPC를 호출합니다. 저장소 SQL은 transaction advisory lock과 upsert로 같은 식별자의 동시 요청을 직렬화합니다.
+Edge Function은 사용자 충전 기회와 IP를 요청당 한 번 예약하고 실제 실행할 sketch·analyze service counter만 증가시키는 `consume_diary_ai_inspection_quota_v2` RPC를 호출합니다. 사용자 기회는 최초 2개이며 매일 09:00 KST에 1개를 충전하되 최대 2개까지만 보유합니다. 잔여량이 2개 미만이면 `grant_diary_ai_ad_reward_v2`가 새로운 광고 영수증당 1개를 추가하며 일일 횟수 제한은 없습니다. 저장소 SQL은 transaction advisory lock과 사용자 행 잠금으로 같은 식별자의 동시 요청을 직렬화하고 영수증 기본 키로 중복 callback을 막습니다.
 
 ## 연속 기록 흐름
 
@@ -208,14 +208,14 @@ Canvas 합성과 외부 요청은 서로 분리되어 있어 Edge Function이 �
 
 ## 외부 서비스와 저장소
 
-| 대상                | 전송 또는 저장 데이터                                                       | 경계                         |
-| ------------------- | --------------------------------------------------------------------------- | ---------------------------- |
-| Supabase `diary-ai` | inspect·quota와 익명 hash 기반 방문·완료 action                             | `supabaseEdge.ts`            |
-| Supabase PostgreSQL | 요청 횟수, 익명 사용자 방문일·활동일·마일스톤 정의                          | rate-limit·progress tables   |
-| OpenAI              | 분석은 Chat Completions, 그림은 Images Edits로 사진·본문 전송               | `supabase/diary-ai/index.ts` |
-| Apps in Toss        | 익명 key 조회, JPEG 저장, 앱 공유 링크와 메시지, 완성 일기 보관(`Storage`)  | web-framework runtime API    |
-| localStorage        | draft, quota/progress snapshot, 브라우저 ID, 완성 일기와 progress 대체 경로 | 기기 내                      |
-| 메모리              | 분석 캐시, 그림 캐시, 진행 요청 ledger, 완성 JPEG                           | 현재 앱 실행                 |
+| 대상                | 전송 또는 저장 데이터                                                       | 경계                              |
+| ------------------- | --------------------------------------------------------------------------- | --------------------------------- |
+| Supabase `diary-ai` | inspect·quota와 익명 hash 기반 방문·완료 action                             | `supabaseEdge.ts`                 |
+| Supabase PostgreSQL | AI 잔여 기회, 요청 횟수, 익명 사용자 방문일·활동일·마일스톤 정의            | credit·rate-limit·progress tables |
+| OpenAI              | 분석은 Chat Completions, 그림은 Images Edits로 사진·본문 전송               | `supabase/diary-ai/index.ts`      |
+| Apps in Toss        | 익명 key 조회, JPEG 저장, 앱 공유 링크와 메시지, 완성 일기 보관(`Storage`)  | web-framework runtime API         |
+| localStorage        | draft, quota/progress snapshot, 브라우저 ID, 완성 일기와 progress 대체 경로 | 기기 내                           |
+| 메모리              | 분석 캐시, 그림 캐시, 진행 요청 ledger, 완성 JPEG                           | 현재 앱 실행                      |
 
 ## 인증·인가
 
@@ -246,16 +246,15 @@ flowchart LR
     AIT -->|npm run deploy| Console["Apps in Toss 콘솔"]
     Console --> WebView["Toss WebView 미니앱"]
     WebView -->|선택 설정| Edge["별도 Supabase diary-ai"]
-    Browser["일반 브라우저 개발"] -->|npm run dev:web| Vite["Vite :5173"]
-    Sandbox["Toss 샌드박스"] -->|intoss://summer-vacation-diary| Bridge["granite dev :8081"]
-    Bridge --> Vite
+    Browser["로컬 브라우저 개발"] -->|npm run dev| Devtools["Vite + AIT Devtools :5173"]
+    Console -->|비공개 QR| Device["iOS·Android 실기기 테스트"]
 ```
 
-`granite.config.ts`의 `web.commands.build`는 `vite build`, `outdir`은 `dist`입니다. GitHub Actions에는 PR merge Discord 알림만 있고 빌드·테스트·배포 workflow는 없습니다.
+`package.json`의 build는 `vite build && ait build`이고 `apps-in-toss.config.ts`의 `webBundleDir`은 `dist`입니다. GitHub Actions에는 PR merge Discord 알림만 있고 빌드·테스트·배포 workflow는 없습니다.
 
 ## 확인된 기술 선택
 
-- **WebView track 2.10.7:** `granite dev` 샌드박스 bridge가 필요한 현재 개발 루프를 위해 SDK 2.x를 사용한다는 결정이 `granite.config.ts`와 저장소 지침에 기록됨
+- **WebView SDK 3.1.1:** SDK 2.x Origin을 유지하고 AIT Devtools 및 콘솔 QR 테스트를 사용하는 안정 버전으로 고정
 - **라우터 없음:** deep link 없는 엄격한 wizard라 의존성 추가 이점이 없다는 `App.tsx` 주석
 - **HTML 파일 입력:** 브라우저와 Toss WebView 모두 동작하고 Granite 사진 권한이 필요 없다는 `PhotoUploadStep.tsx` 주석
 - **data URL + localStorage:** 백엔드 없이 작업 사본을 유지하되 JPEG 압축과 단계적 용량 저하로 quota 오류를 완화
@@ -264,7 +263,7 @@ flowchart LR
 ## 알려진 제약
 
 - 시작 시 저장된 draft를 복원하지 않습니다.
-- Edge Function과 bootstrap SQL은 저장소에서 version 관리하지만 운영 배포 일치 여부는 별도 확인이 필요합니다.
+- 2026-08-30 운영 Edge Function v136과 DB v2 RPC가 저장소 source와 일치함을 확인했습니다. 이후 배포도 동일한 source 대조와 quota·광고 smoke test가 필요합니다.
 - rate-limit 정리 RPC는 제공되지만 실제 주기 실행 schedule과 hash 보존 기간은 운영 설정이 필요합니다.
 - 자동 테스트와 CI 품질 gate가 없습니다.
 - 계정 동기화, 클라우드 백업, PDF 내보내기가 없습니다.
