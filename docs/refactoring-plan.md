@@ -27,7 +27,7 @@
 ### 권장 우선순위
 
 1. 자동 테스트 도입
-   - 이미지 검증, 날짜 계산, quota parser, `diaryStore` 손상 복구와 하루 3개 제한을 우선 대상으로 합니다.
+   - 이미지 검증, 날짜 계산, quota parser, `diaryStore` 손상 복구와 하루 2개 제한을 우선 대상으로 합니다.
    - 현재 품질 gate는 lint·TypeScript·build와 수동 회귀뿐입니다.
 2. `App.tsx` 흐름 분리
    - 온보딩, 제작 wizard, 완성 처리, 달력 이동 상태가 한 컴포넌트에 모여 있습니다.

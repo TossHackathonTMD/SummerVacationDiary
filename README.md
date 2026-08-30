@@ -43,7 +43,7 @@
     <td align="center" width="50%">
       <strong>5. 날짜별 저장 한도 안내</strong><br /><br />
       <img src="./docs/screenshots/05-diary-completed-modal.png" width="300" alt="날짜별 일기 저장 한도를 안내하는 모달" /><br /><br />
-      <sub>오늘 이미 일기가 가득 찼을 때 최대 3개 제한과 기록 보기·닫기를 안내하는 모달</sub>
+      <sub>오늘 이미 일기가 가득 찼을 때 최대 2개 제한과 기록 보기·닫기를 안내하는 모달</sub>
     </td>
     <td align="center" width="50%">
       <strong>6. 선생님 검사 진행</strong><br /><br />
@@ -123,7 +123,7 @@ flowchart LR
     W --> C
 ```
 
-사진 변환과 일기 검사는 `검사 받기`를 눌렀을 때 필요한 작업만 실행합니다. 사진 또는 본문이 바뀌면 `다시 검사 받기`, 제목·날씨·낮/밤만 바뀌면 `수정 내용 확인하기`, 변경이 없으면 `미리보기로 돌아가기`로 다음 동작을 구분합니다. 두 AI 작업은 하나의 검사 기회로 제공되며 총 3회 사용할 수 있습니다. 같은 사진의 그림과 같은 입력의 분석 결과는 재사용합니다. 사용량이 이미 소진되어 실행할 작업이 없으면 처리 애니메이션을 건너뛰고 원본 기반 미리보기를 바로 표시합니다. 완성한 JPEG를 일기 달력에 저장하고 연속 기록까지 반영하면 `일기와 오늘의 도장을 저장했어요! (현재 개수/3)` 토스트를 표시하고, 해당 날짜에 도장이 찍힌 뒤 새 기록을 자동으로 엽니다. 진행 서버 확인에 실패해도 일기는 저장하며 별도 안내를 표시합니다.
+사진 변환과 일기 검사는 `검사 받기`를 눌렀을 때 필요한 작업만 실행합니다. 사진 또는 본문이 바뀌면 `다시 검사 받기`, 제목·날씨·낮/밤만 바뀌면 `수정 내용 확인하기`, 변경이 없으면 `미리보기로 돌아가기`로 다음 동작을 구분합니다. 두 AI 작업은 하나의 검사 기회를 사용합니다. 기회는 최대 2개를 보유하며 매일 오전 9시에 1개씩 충전되고, 이미 2개면 더 쌓이지 않습니다. 같은 사진의 그림과 같은 입력의 분석 결과는 재사용합니다. 사용량이 이미 소진되어 실행할 작업이 없으면 처리 애니메이션을 건너뛰고 원본 기반 미리보기를 바로 표시합니다. 완성한 JPEG를 일기 달력에 저장하고 연속 기록까지 반영하면 `일기와 오늘의 도장을 저장했어요! (현재 개수/2)` 토스트를 표시하고, 해당 날짜에 도장이 찍힌 뒤 새 기록을 자동으로 엽니다. 진행 서버 확인에 실패해도 일기는 저장하며 별도 안내를 표시합니다.
 
 ## 입력 규칙
 
@@ -155,8 +155,8 @@ flowchart LR
 | 구분          | 기술                                          | 역할                                    |
 | ------------- | --------------------------------------------- | --------------------------------------- |
 | UI            | React 18.3.1, TypeScript 5.7.3                | 화면과 상태 구현                        |
-| 디자인 시스템 | TDS Mobile 2.5.0, TDS Mobile AIT 2.5.0        | 토스 환경용 컴포넌트와 피드백 UI        |
-| 빌드·런타임   | Vite 6.4.3, Apps in Toss Web Framework 2.10.7 | 웹 번들, 샌드박스 브리지, 배포          |
+| 디자인 시스템 | TDS Mobile 2.5.1, TDS Mobile AIT 2.5.1        | 토스 환경용 컴포넌트와 피드백 UI        |
+| 빌드·런타임   | Vite 6.4.3, Apps in Toss Web Framework 3.1.1  | 웹 번들, AIT Devtools, 배포             |
 | 이미지 처리   | React Easy Crop 6.2.3, Canvas API             | 사진 자르기, 로컬 필터, 결과 합성       |
 | 외부 연동     | Supabase Edge Function                        | 사진 변환, 일기 분석, 사용량 조회       |
 | 로컬 저장     | Apps in Toss Storage, Web Storage, Web Crypto | 완성 일기, 작업 사본, 캐시, 익명 식별값 |
@@ -167,7 +167,7 @@ flowchart LR
 
 ### 요구 환경
 
-- Node.js `^18.0.0`, `^20.0.0` 또는 `>=22.0.0` — Vite의 지원 범위
+- Node.js `>=24` — AIT Devtools 3.1.1 요구사항
 - npm — `package-lock.json` lockfile v3 사용
 
 ### 설치와 브라우저 실행
@@ -176,12 +176,12 @@ flowchart LR
 git clone https://github.com/TossHackathonTMD/SummerVacationDiary.git
 cd SummerVacationDiary
 npm ci
-npm run dev:web
+npm run dev
 ```
 
-브라우저에서 `http://localhost:5173`을 엽니다. Supabase 설정이 없어도 동작하며, 토스 전용 저장·공유 기능은 브라우저 다운로드와 Web Share 또는 링크 복사로 대체됩니다.
+브라우저에서 `http://localhost:5173`을 엽니다. AIT Devtools가 SDK 브리지를 mock하므로 Supabase 설정이 없어도 주요 흐름을 테스트할 수 있습니다.
 
-Apps in Toss 샌드박스, 실기기 호스트 설정, 실행 모드별 환경 구성은 [개발 환경 설정](./docs/setup.md)을 따르세요.
+콘솔 QR 실기기 테스트와 실행 모드별 환경 구성은 [개발 환경 설정](./docs/setup.md)을 따르세요.
 
 ## 환경 변수
 
@@ -194,7 +194,6 @@ cp .env.example .env
 | `VITE_SUPABASE_URL`             | 선택      | 클라이언트 공개 | `diary-ai` Function이 있는 Supabase 프로젝트 URL    |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | 선택      | 클라이언트 공개 | Supabase publishable key                            |
 | `VITE_AI_TEST_MODE`             | 선택      | 클라이언트 공개 | `true`이면 그림 생성 요청을 생략하고 원본 사진 사용 |
-| `AIT_DEV_HOST`                  | 선택      | 개발 프로세스   | 샌드박스가 접속할 Vite 개발 서버 호스트 재정의      |
 
 두 Supabase 변수는 함께 설정해야 합니다. 하나라도 비어 있으면 외부 요청을 보내지 않는 체험 모드로 동작합니다.
 
@@ -215,7 +214,7 @@ cp .env.example .env
 │   └── main.tsx            # React 진입점
 ├── docs/                   # 개발·기능·API·설계 문서
 ├── design/                 # 앱 로고 원본
-├── granite.config.ts       # Apps in Toss SDK 2.x 설정
+├── apps-in-toss.config.ts  # Apps in Toss SDK 3.x 설정
 └── package.json            # 명령과 의존성
 ```
 
@@ -226,7 +225,7 @@ cp .env.example .env
 - [API 명세](./docs/api-specification.md) — 클라이언트가 기대하는 `diary-ai` HTTP 계약
 - [ERD](./docs/erd.md) — Supabase 사용량 제한 테이블의 키·제약조건·보안 주의사항
 - [아키텍처](./docs/architecture.md) — 컴포넌트 경계, 데이터·비동기 흐름, 배포 구조
-- [개발 환경 설정](./docs/setup.md) — 브라우저·샌드박스 실행과 외부 서비스 설정
+- [개발 환경 설정](./docs/setup.md) — AIT Devtools·QR 테스트와 외부 서비스 설정
 - [배포](./docs/deployment.md) — 빌드 산출물, Apps in Toss 배포 조건과 확인 항목
 - [보안·데이터 처리](./docs/security.md) — 공개 설정, 로컬 데이터, 외부 전송과 제한
 - [완성·보관 UX 명세](./docs/completion-feedback-specification.md) — JPEG 완성, 자동 보관, 저장·공유 피드백
@@ -254,11 +253,11 @@ npm run deploy
 ## 현재 제약
 
 - 앱을 열 때마다 새 일기로 시작하며, 저장된 작업 사본을 시작 화면에서 복원하지 않습니다.
-- 완성한 일기는 일기 달력에 자동 보관되며 날짜별 최대 3개까지 저장됩니다. AI 입력과 같은 사진·본문 해시가 유지되면 제목·날씨 변경은 기존 기록에 반영합니다. 사진 또는 본문이 바뀌면 새 ID의 별도 기록으로 보관합니다. 토스 앱에서는 `Storage`, 일반 브라우저에서는 `localStorage`를 사용합니다.
+- 완성한 일기는 일기 달력에 자동 보관되며 날짜별 최대 2개까지 저장됩니다. AI 입력과 같은 사진·본문 해시가 유지되면 제목·날씨 변경은 기존 기록에 반영합니다. 사진 또는 본문이 바뀌면 새 ID의 별도 기록으로 보관합니다. 토스 앱에서는 `Storage`, 일반 브라우저에서는 `localStorage`를 사용합니다.
 - 보관 일기는 서버나 다른 기기와 동기화되지 않으며 앱 데이터 삭제 시 함께 사라질 수 있습니다.
 - 공유 기능은 완성 이미지 파일이 아니라 앱 소개 문구와 미니앱 링크를 공유합니다.
 - 외부 분석·그림 생성은 이 저장소 밖에 배포된 호환 `diary-ai` Function에 의존합니다.
-- 제공된 서버 스냅샷의 제한은 사용자 3회/일, IP 20회/10분·100회/일, sketch 150회/일, analyze 250회/일이며 매일 09:00 KST에 초기화됩니다. 운영 배포본의 일치 여부와 데이터 보존 기간은 별도 확인이 필요합니다.
+- 제공된 서버 스냅샷은 사용자별 AI 검사 기회를 최대 2개 보관하고 매일 09:00 KST에 1개 충전합니다. IP 20회/10분·100회/일, sketch 150회/일, analyze 250회/일 보호 제한은 매일 09:00 KST에 초기화됩니다. 운영 배포본의 일치 여부와 데이터 보존 기간은 별도 확인이 필요합니다.
 - 사진 변환이나 분석이 실패해도 원본 사진과 작성한 글로 JPEG를 완성할 수 있습니다.
 - 저장소에 라이선스 파일이 없어 재사용 조건은 확인이 필요합니다.
 

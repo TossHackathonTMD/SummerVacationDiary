@@ -60,7 +60,7 @@ diary:v1:<id>
 - 하나의 summary는 같은 `id`의 record 하나를 가리킵니다.
 - `date`는 초안을 만든 시점의 기기 현지 날짜로 확정되며 사용자가 바꿀 수 없습니다.
 - `draftId`와 사진·본문의 `revisionKey`가 같은 일기는 제목·날씨를 바꿔 다시 저장해도 기존 항목을 대체해 하나만 유지합니다. 같은 `draftId`라도 사진 또는 본문이 달라지면 별도 항목으로 저장합니다. 이전 버전에서 저장해 `revisionKey`가 없는 기록도 계속 읽되, 사진 일치 여부를 확정할 수 없어 다른 기록과 자동 병합하지 않습니다.
-- 같은 날짜에는 유효한 record를 최대 3개 저장합니다.
+- 같은 날짜에는 유효한 record를 최대 2개 저장합니다.
 - 저장 순서는 record → index이며, 조회 중 끊어진 index 참조를 정리합니다.
 - 사용자 계정이나 서버 foreign key가 없어 다른 기기와 동기화되지 않습니다.
 
@@ -68,27 +68,28 @@ diary:v1:<id>
 
 ## table 책임
 
-| table | 책임 | 주요 무결성 |
-| --- | --- | --- |
-| `diary_ai_rate_limits` | scope·hash·action·window별 AI 요청 횟수 | 복합 PK, 허용값 check, 0 이상 count |
-| `diary_user_progress` | 첫/최근 방문과 서로 다른 방문일 수 | SHA-256 형식 PK, `visit_days >= 1` |
-| `diary_activity_days` | 실제 앱 방문 당일 완성 여부 | `(user_hash, activity_date)` PK로 하루 1회, 사용자 삭제 시 cascade |
-| `diary_milestones` | 연속·누적 기준과 표시 문구 | `(metric, threshold)` PK, tier check |
+| table                   | 책임                                              | 주요 무결성                                                        |
+| ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------ |
+| `diary_ai_user_credits` | 사용자별 AI 검사 잔여량과 마지막 충전 경계        | SHA-256 PK, 잔여량 0~2, UTC day 경계                               |
+| `diary_ai_rate_limits`  | IP·서비스 scope·hash·action·window별 AI 요청 횟수 | 복합 PK, 허용값 check, 0 이상 count                                |
+| `diary_user_progress`   | 첫/최근 방문과 서로 다른 방문일 수                | SHA-256 형식 PK, `visit_days >= 1`                                 |
+| `diary_activity_days`   | 실제 앱 방문 당일 완성 여부                       | `(user_hash, activity_date)` PK로 하루 1회, 사용자 삭제 시 cascade |
+| `diary_milestones`      | 연속·누적 기준과 표시 문구                        | `(metric, threshold)` PK, tier check                               |
 
 ## public RPC
 
 table 직접 권한은 모두 회수하고 다음 함수만 `service_role`에 실행 권한을 줍니다.
 
-| RPC | 역할 |
-| --- | --- |
-| `consume_diary_ai_inspection_quota` | 사용자·IP·서비스 counter를 한 transaction에서 검사·예약 |
-| `refund_diary_ai_inspection_quota` | 환불 가능한 실패의 예약분 감소 |
-| `read_diary_ai_inspection_quota` | 비차감 quota snapshot 조회 |
-| `cleanup_diary_ai_rate_limits` | 기준 시각보다 오래된 rate-limit 행 정리 |
-| `record_diary_app_visit` | 한국 날짜 방문을 멱등 반영하고 snapshot 반환 |
-| `read_diary_progress` | 현재 연속 일수와 누적 작성일 조회 |
-| `record_diary_completion` | 오늘 활동일을 멱등 적립하고 신규 마일스톤 반환 |
-| `delete_diary_progress` | 익명 사용자 진행 데이터 삭제 |
+| RPC                                    | 역할                                                                         |
+| -------------------------------------- | ---------------------------------------------------------------------------- |
+| `consume_diary_ai_inspection_quota_v2` | 충전을 반영하고 사용자 기회·IP·서비스 counter를 한 transaction에서 검사·예약 |
+| `refund_diary_ai_inspection_quota_v2`  | 환불 가능한 실패의 사용자 기회·보호 counter 반환                             |
+| `read_diary_ai_inspection_quota_v2`    | 충전을 반영하는 비차감 quota snapshot 조회                                   |
+| `cleanup_diary_ai_rate_limits`         | 기준 시각보다 오래된 rate-limit 행 정리                                      |
+| `record_diary_app_visit`               | 한국 날짜 방문을 멱등 반영하고 snapshot 반환                                 |
+| `read_diary_progress`                  | 현재 연속 일수와 누적 작성일 조회                                            |
+| `record_diary_completion`              | 오늘 활동일을 멱등 적립하고 신규 마일스톤 반환                               |
+| `delete_diary_progress`                | 익명 사용자 진행 데이터 삭제                                                 |
 
 quota와 progress 쓰기는 user hash 기반 PostgreSQL advisory transaction lock을 사용합니다. 같은 사용자의 동시 완료 요청은 직렬화되고, 활동일 복합 PK가 최종 중복 적립을 막습니다.
 

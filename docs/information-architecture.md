@@ -13,7 +13,7 @@
 | 사용자 유형          | 접근 영역                                | 차이                                                   |
 | -------------------- | ---------------------------------------- | ------------------------------------------------------ |
 | 일반 사용자          | 전체 제작 흐름                           | 로그인·역할 구분 없이 사용                             |
-| 토스/샌드박스 사용자 | 전체 제작 흐름 + 토스 저장·공유          | Apps in Toss 브리지 API 사용                           |
+| 토스 사용자          | 전체 제작 흐름 + 토스 저장·공유          | Apps in Toss 브리지 API 사용                           |
 | 일반 브라우저 사용자 | 전체 제작 흐름 + 브라우저 대체 저장·공유 | 다운로드, Web Share, 링크 복사 사용                    |
 | 해외 IP 사용자       | 전체 로컬 제작 흐름                      | 서버가 지역 제한을 보고하면 그림 생성·일기 검사만 제한 |
 
@@ -75,7 +75,7 @@
 | 사진 업로드    | [`02-photo-upload.png`](./screenshots/02-photo-upload.png)                                   | 오늘의 도장·연속 14일, AI 잔여량     |
 | 처리 동의      | [`03-photo-consent.png`](./screenshots/03-photo-consent.png)                                 | 필수 동의 후 파일 선택               |
 | 일기 작성      | [`04-write-diary.png`](./screenshots/04-write-diary.png)                                     | 제목·날씨·낮/밤·본문 입력, 오늘 날짜 |
-| 날짜 저장 한도 | [`05-diary-completed-modal.png`](./screenshots/05-diary-completed-modal.png)                 | 하루 최대 3개 기록 안내와 기록 보기  |
+| 날짜 저장 한도 | [`05-diary-completed-modal.png`](./screenshots/05-diary-completed-modal.png)                 | 하루 최대 2개 기록 안내와 기록 보기  |
 | 검사 진행      | [`06-teacher-review.png`](./screenshots/06-teacher-review.png)                               | 3단계 처리 애니메이션                |
 | 미리보기       | [`07-diary-preview.png`](./screenshots/07-diary-preview.png)                                 | 그림·첨삭·한마디·도장 확인           |
 | 저장 일기 상세 | [`08-saved-diary-detail.png`](./screenshots/08-saved-diary-detail.png)                       | 같은 날짜 기록 이동, 삭제, 저장·공유 |
@@ -144,7 +144,7 @@ Supabase가 없어도 그림은 로컬 필터, 분석은 결정적 mock으로 �
 - 합성 실패: 미리보기 유지, 토스트의 `다시 시도`
 - 저장·공유 실패: 저장·공유 모달 유지, 오류 메시지 표시
 - 자동 보관 실패: 미리보기를 유지하고 토스트 표시
-- 작성 진입 또는 미리보기 저장 시 하루 3개 한도 도달: 닫거나 일기장으로 이동해 기존 기록 삭제
+- 작성 진입 또는 미리보기 저장 시 하루 2개 한도 도달: 닫거나 일기장으로 이동해 기존 기록 삭제
 - 연속 기록 반영 실패: 완성 일기는 유지하고 별도 토스트 표시, 같은 한국 날짜의 다음 앱 복귀 때 재시도
 - 달력 조회·공유·삭제 실패: 달력 또는 뷰어를 유지하고 인라인 오류 표시
 
@@ -157,7 +157,7 @@ Supabase가 없어도 그림은 로컬 필터, 분석은 결정적 mock으로 �
 - 자르기와 일기 뷰어는 `role="dialog"`와 `aria-modal`, 동의·저장 및 공유·삭제 확인 화면은 TDS `Modal`을 사용합니다.
 - 장식 프레임과 첨삭 오버레이는 스크린 리더 읽기 순서에서 제외합니다.
 
-근거: `src/App.tsx`, `src/components/PhotoUploadStep.tsx`, `src/components/PhotoCropModal.tsx`, `src/components/PreviewStep.tsx`, `src/components/DiaryShareModal.tsx`, `granite.config.ts`
+근거: `src/App.tsx`, `src/components/PhotoUploadStep.tsx`, `src/components/PhotoCropModal.tsx`, `src/components/PreviewStep.tsx`, `src/components/DiaryShareModal.tsx`, `apps-in-toss.config.ts`
 
 ## 현재 없는 구조
 

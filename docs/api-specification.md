@@ -40,10 +40,11 @@
   "quota": {
     "all": {
       "used": 0,
-      "limit": 3,
-      "remaining": 3
+      "limit": 2,
+      "remaining": 2
     },
-    "resetAt": "2026-07-29T00:00:00.000Z",
+    "nextRefillAt": "2026-08-31T00:00:00.000Z",
+    "resetAt": "2026-08-31T00:00:00.000Z",
     "blocked": null,
     "region": {
       "allowed": true,
@@ -56,17 +57,18 @@
 
 | 필드             | 타입·제약                                                   |
 | ---------------- | ----------------------------------------------------------- |
-| `all`            | 필수 통합 AI 검사 카운터                                    |
-| `resetAt`        | 파싱 가능한 ISO date string                                 |
+| `all`            | 필수 통합 AI 검사 카운터, `limit`은 2                       |
+| `nextRefillAt`   | 다음 1개 충전 시각인 ISO date string                        |
+| `resetAt`        | 이전 클라이언트 호환 필드, `nextRefillAt`과 같은 값         |
 | `blocked`        | `null`, `device`, `ip-burst`, `ip-daily`, `service` 중 하나 |
 | `region.allowed` | boolean. 누락 시 클라이언트는 `true`로 호환 처리            |
 | `region.country` | ISO 3166-1 alpha-2 string 또는 `null`로 기대                |
 | `testMode`       | `true`일 때만 true, 누락 시 false                           |
 
 클라이언트는 `quota.all`만 통합 `AI 검사 기회`의 권위값으로 사용합니다.
-Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, 사용자 `all`과 IP counter를 요청당 한 번 예약하는 `consume_diary_ai_inspection_quota` RPC를 호출합니다. 서비스 counter는 실제 요청한 sketch·analyze 작업별로 전달하며, 저장소 SQL은 advisory transaction lock과 upsert로 같은 식별자의 동시 차감을 직렬화합니다.
+Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, 사용자 기회와 IP counter를 요청당 한 번 예약하는 `consume_diary_ai_inspection_quota_v2` RPC를 호출합니다. 서비스 counter는 실제 요청한 sketch·analyze 작업별로 전달하며, 저장소 SQL은 advisory transaction lock과 사용자 행 잠금으로 같은 식별자의 동시 차감을 직렬화합니다.
 
-일일 window는 매일 `00:00 UTC`, 한국 시간 `09:00`에 초기화됩니다. `DIARY_AI_TEST_MODE=true`인 서버 테스트 모드는 DB를 읽거나 차감하지 않고 `testMode: true`, limit `0`인 snapshot을 반환합니다.
+사용자 기회는 최초 2개이며 매일 `00:00 UTC`, 한국 시간 `09:00`에 1개를 충전하고 최대 2개까지만 보관합니다. IP·서비스 일일 window는 같은 시각에 전체 초기화됩니다. `DIARY_AI_TEST_MODE=true`인 서버 테스트 모드는 DB를 읽거나 차감하지 않고 `testMode: true`, limit `0`인 snapshot을 반환합니다.
 
 ## A-01 사용량 조회
 
@@ -78,7 +80,7 @@ Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, �
 }
 ```
 
-- **목적:** 작업을 차감하지 않고 통합 AI 검사 사용량과 지역 상태를 조회
+- **목적:** 경과한 충전을 반영하되 작업은 차감하지 않고 통합 AI 검사 잔여량과 지역 상태를 조회
 - **timeout:** 10초
 - **Path·Query parameter:** 없음
 - **권한:** 공통 publishable key와 익명 식별 header
@@ -127,7 +129,7 @@ Edge Function은 필요한 작업을 하나의 `inspect` 요청으로 묶고, �
 - **Path·Query parameter:** 없음
 - **권한:** 공통 publishable key와 익명 식별 header
 - **서버 validation:** `inspect` action과 실행 flag를 먼저 검사합니다. 분석은 object 입력과 비어 있지 않은 `content`, 그림은 Base64 data URL 문법과 디코딩 가능 여부를 검사합니다. 서버 코드에는 별도 MIME allowlist·byte 상한이 없으므로 클라이언트의 10MB·이미지 규칙과 동일한 서버 방어로 간주하면 안 됩니다.
-- **rate limit:** 사용자 통합 3회/UTC day, IP 20회/10분, IP 100회/UTC day. 서비스 한도는 sketch 150회/UTC day, analyze 250회/UTC day
+- **rate limit:** 사용자 기회 최대 2개·매일 1개 충전, IP 20회/10분, IP 100회/UTC day. 서비스 한도는 sketch 150회/UTC day, analyze 250회/UTC day
 - **지역 제한:** `cf-ipcountry` → `x-country` → `x-vercel-ip-country` 순으로 국가를 읽고, 확인된 국가가 `KR`이 아니면 예약 전에 `403 region-blocked`. 국가가 없거나 `XX`, `T1`이면 unknown으로 보고 허용
 
 ### 성공 응답
@@ -287,12 +289,12 @@ invalid-response
 
 네 action은 모두 빈 body의 `action` 값과 공통 `x-diary-client-id` header만 사용합니다. Edge Function이 client ID를 salt 포함 SHA-256으로 변환하고 service role로 아래 RPC를 호출하므로, 브라우저에는 hash나 DB 실행 권한이 노출되지 않습니다.
 
-| action              | RPC                                | 의미                                      |
-| ------------------- | ---------------------------------- | ----------------------------------------- |
-| `progress-visit`    | `record_diary_app_visit`           | 한국 날짜 기준 방문일 기록 후 snapshot 조회 |
-| `progress-status`   | `read_diary_progress`              | 쓰기 없는 현재 snapshot 조회              |
-| `progress-complete` | `record_diary_completion`          | 오늘 작성일을 멱등 기록하고 마일스톤 반환  |
-| `progress-delete`   | `delete_diary_progress`            | 해당 익명 hash의 진행 데이터 삭제          |
+| action              | RPC                       | 의미                                        |
+| ------------------- | ------------------------- | ------------------------------------------- |
+| `progress-visit`    | `record_diary_app_visit`  | 한국 날짜 기준 방문일 기록 후 snapshot 조회 |
+| `progress-status`   | `read_diary_progress`     | 쓰기 없는 현재 snapshot 조회                |
+| `progress-complete` | `record_diary_completion` | 오늘 작성일을 멱등 기록하고 마일스톤 반환   |
+| `progress-delete`   | `delete_diary_progress`   | 해당 익명 hash의 진행 데이터 삭제           |
 
 요청 예시:
 
@@ -313,7 +315,12 @@ invalid-response
     "completedToday": true,
     "newlyCompleted": true,
     "milestones": [
-      { "metric": "streak", "threshold": 5, "tier": "special", "title": "다섯 날의 리듬" }
+      {
+        "metric": "streak",
+        "threshold": 5,
+        "tier": "special",
+        "title": "다섯 날의 리듬"
+      }
     ]
   }
 }
