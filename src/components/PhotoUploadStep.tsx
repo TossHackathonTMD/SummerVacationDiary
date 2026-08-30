@@ -18,7 +18,7 @@ import {
   loadImageFileForCrop,
   validateImageFile,
 } from "../utils/image";
-import { getCachedSketch, hashPhotoFile } from "../services/sketchCache";
+import { hashPhotoFile } from "../services/sketchCache";
 import { isAiTestMode, isSupabaseConfigured } from "../services/supabaseEdge";
 import { DiaryButton } from "./DiaryButton";
 import { PhotoCropModal } from "./PhotoCropModal";
@@ -27,14 +27,6 @@ export interface PhotoSelection {
   dataUrl: string;
   /** SHA-256 of the source file, or null when hashing was unavailable. */
   sourceHash: string | null;
-  /** Set only when the user chose to reuse a previously drawn sketch. */
-  reusedSketchDataUrl?: string;
-  /**
-   * Set only when the user chose 다시 그리기 over an existing drawing, which
-   * throws that drawing away — the caller has to clear every cache holding it,
-   * or the old picture comes straight back instead of a new one.
-   */
-  redraw?: true;
 }
 
 interface PhotoUploadStepProps {
@@ -45,8 +37,6 @@ interface PhotoUploadStepProps {
   /** Kept only for the lifetime of the current mini-app execution. */
   hasSessionConsent: boolean;
   onSessionConsent: () => void;
-  /** False when no request can reach the server today (budget spent, region). */
-  canRedraw: boolean;
   /** True while a drawing for that source file is still on its way. */
   isDrawingInProgress: (sourceHash: string | null) => boolean;
 }
@@ -65,7 +55,6 @@ export function PhotoUploadStep({
   onRequestExit,
   hasSessionConsent,
   onSessionConsent,
-  canRedraw,
   isDrawingInProgress,
 }: PhotoUploadStepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +72,7 @@ export function PhotoUploadStep({
   const sourceHashRef = useRef<string | null>(null);
 
   const toast = useToast();
-  const { openAlert, openConfirm } = useDialog();
+  const { openAlert } = useDialog();
 
   useEffect(() => {
     const handleBack = (event: PopStateEvent) => {
@@ -156,52 +145,13 @@ export function PhotoUploadStep({
     window.history.back();
   };
 
-  const commitPhoto = async (croppedDataUrl: string) => {
+  const commitPhoto = (croppedDataUrl: string) => {
     const sourceHash = sourceHashRef.current;
-    const cachedSketch = getCachedSketch(sourceHash);
-    if (cachedSketch === null) {
-      onPhotoChange({ dataUrl: croppedDataUrl, sourceHash });
-      return;
-    }
-
-    // With nothing left to spend, 다시 그리기 could only throw the drawing away
-    // and give nothing back, so the choice is not offered at all — the dialog's
-    // "1회 차감" promise has to be true whenever it is shown.
-    if (!canRedraw) {
-      toast.openToast(
-        "지금은 다시 그릴 수 없어서 이미 그린 그림을 사용했어요.",
-      );
-      onPhotoChange({
-        dataUrl: croppedDataUrl,
-        sourceHash,
-        reusedSketchDataUrl: cachedSketch,
-      });
-      return;
-    }
-
-    // Drawing again costs one of the user's limited credits, so the choice is
-    // the user's rather than an automatic substitution — they may well have
-    // re-picked this photo precisely to crop it differently.
-    // Reuse is the primary button, not redrawing: the confirm slot is the one
-    // people press without reading, and it should be the one that does not
-    // spend a request.
-    const reuse = await openConfirm({
-      title: "이미 그린 그림이 있어요",
-      description:
-        "기존 그림을 사용할까요?\n다시 그리면 오늘 남은 횟수가 1회 차감돼요.",
-      confirmButton: <DiaryButton>기존 그림 사용하기</DiaryButton>,
-      cancelButton: <DiaryButton tone="secondary">다시 그리기</DiaryButton>,
-    });
-
-    onPhotoChange({
-      dataUrl: croppedDataUrl,
-      sourceHash,
-      // Handing the sketch back with the photo is what skips the request: the
-      // sketch hook only runs when the draft has no drawing yet. Redrawing is
-      // the opposite signal — the old drawing has to be discarded before the
-      // new request can even be made.
-      ...(reuse ? { reusedSketchDataUrl: cachedSketch } : { redraw: true }),
-    });
+    // The drawing cache inside useSketch is keyed by the exact cropped image.
+    // An identical crop can therefore reuse its in-session result, while even
+    // a subtle crop change gets a fresh drawing without asking the user to
+    // compare two images that no longer line up.
+    onPhotoChange({ dataUrl: croppedDataUrl, sourceHash });
   };
 
   const requestPhotoSelection = () => {

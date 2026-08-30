@@ -287,7 +287,6 @@ function App() {
   const {
     state: sketchState,
     retry: retrySketch,
-    discardSketch,
     isDrawingInProgress,
   } = useSketch(
     draft,
@@ -1103,30 +1102,15 @@ function App() {
             onRequestExit={requestAppExit}
             hasSessionConsent={hasPhotoSessionConsent}
             onSessionConsent={() => setHasPhotoSessionConsent(true)}
-            canRedraw={sketchAllowed}
             isDrawingInProgress={isDrawingInProgress}
-            onPhotoChange={({
-              dataUrl,
-              sourceHash,
-              reusedSketchDataUrl,
-              redraw,
-            }) => {
+            onPhotoChange={({ dataUrl, sourceHash }) => {
               setPhotoSourceHash(sourceHash);
-              // 다시 그리기 means the previous drawing is gone for good. Clearing
-              // the draft below is not enough: the caches would hand it straight
-              // back and the ledger would still count this photo as paid for, so
-              // the new request could never go out.
-              if (redraw === true) {
-                discardSketch(dataUrl, sourceHash);
-              }
-              // A sketch belongs to exactly one photo — replacing the photo
-              // must drop the old drawing in the same state update, or the
-              // preview could pair the new photo with the previous sketch. The
-              // one exception is a drawing the user explicitly asked to reuse,
-              // which also keeps the sketch hook from spending a request.
+              // A sketch belongs to the exact cropped image. Replacing the crop
+              // must clear the draft result so useSketch can either reuse that
+              // exact crop's in-session cache or request a new drawing.
               updateDraft({
                 photoDataUrl: dataUrl,
-                sketchDataUrl: reusedSketchDataUrl ?? null,
+                sketchDataUrl: null,
               });
             }}
           />

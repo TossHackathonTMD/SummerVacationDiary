@@ -505,10 +505,25 @@ html:has(
   overflow: hidden;
 }
 
-/* While the AI is working the CTA is hidden and the stage flexes to fill
-   whatever is left, so there is nothing to scroll and no button to clear. */
+/* While the diary is being generated, keep the whole preview inside the
+   WebView. The banner has its own fixed footprint, so the remaining area must
+   be a shrinkable flex item instead of extending the document. */
+.app-shell-preview:has(.preview-step.is-processing) {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .app-shell-preview > .step-body.is-processing {
-  padding-bottom: calc(24px + var(--app-safe-bottom));
+  min-height: 0;
+  flex: 1 1 auto;
+  padding-top: 0;
+  padding-bottom: calc(12px + var(--app-safe-bottom));
+  overflow: hidden;
 }
 
 .app-shell::before {
@@ -3274,14 +3289,16 @@ html:has(
 .preview-step.is-processing .diary-processing-stage {
   min-height: 0;
   flex: 1 1 auto;
+  gap: 11px;
   margin-bottom: 0;
+  padding: 16px 18px 14px;
 }
 
 .diary-processing-visual {
   position: relative;
   display: grid;
-  width: 156px;
-  height: 156px;
+  width: 124px;
+  height: 124px;
   flex: 0 0 auto;
   place-items: center;
 }
@@ -3299,8 +3316,8 @@ html:has(
 .diary-processing-badge {
   position: relative;
   display: grid;
-  width: 132px;
-  height: 132px;
+  width: 104px;
+  height: 104px;
   box-sizing: border-box;
   place-items: center;
   border: 2px solid #78bda1;
@@ -3322,16 +3339,16 @@ html:has(
   position: relative;
   display: block;
   z-index: 1;
-  width: 150px;
-  height: 150px;
+  width: 118px;
+  height: 118px;
   overflow: visible;
   animation: diary-processing-mascot-breathe 4.8s ease-in-out infinite;
 }
 
 .diary-processing-mascot {
   display: block;
-  width: 150px;
-  height: 150px;
+  width: 118px;
+  height: 118px;
   object-fit: contain;
 }
 
@@ -3381,7 +3398,7 @@ html:has(
 
 .diary-processing-copy > span {
   display: inline-block;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   color: #4e806e;
   font-size: 13px;
   font-weight: 800;
@@ -3391,13 +3408,13 @@ html:has(
 .diary-processing-copy h2 {
   margin: 0;
   color: #225e47;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.35;
   word-break: keep-all;
 }
 
 .diary-processing-copy p {
-  margin: 7px 0 0;
+  margin: 4px 0 0;
   color: #68766f;
   font-size: 14px;
   line-height: 1.45;
@@ -3407,7 +3424,7 @@ html:has(
 .diary-processing-steps {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 4px;
   width: 100%;
   margin: 0;
   padding: 0;
@@ -3419,9 +3436,9 @@ html:has(
   grid-template-columns: 26px minmax(0, 1fr);
   align-items: center;
   gap: 9px;
-  min-height: 38px;
+  min-height: 32px;
   box-sizing: border-box;
-  padding: 6px 10px;
+  padding: 4px 9px;
   border: 1px solid transparent;
   border-radius: 11px 9px 10px 8px;
   color: #9a9488;
@@ -3433,8 +3450,8 @@ html:has(
 
 .diary-processing-steps li > span {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   box-sizing: border-box;
   place-items: center;
   border: 1.5px solid #d7d2c7;
@@ -3445,7 +3462,7 @@ html:has(
 }
 
 .diary-processing-steps li > strong {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.35;
   word-break: keep-all;
 }
@@ -4142,8 +4159,8 @@ html:has(
 
 .ai-quota-counter-heading {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 7px;
   min-width: 0;
 }
 
@@ -4155,6 +4172,7 @@ html:has(
 }
 
 .ai-quota-counter-heading > strong {
+  min-width: 0;
   color: #3e493c;
   font-size: 15px;
   font-weight: 800;
@@ -4561,7 +4579,7 @@ html:has(
 }
 
 .app-shell-upload > .ai-quota-counter .ai-quota-counter-heading {
-  gap: 0;
+  gap: 7px;
 }
 
 .app-shell-upload > .ai-quota-counter .ai-quota-counter-value {
